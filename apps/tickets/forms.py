@@ -20,13 +20,15 @@ class TicketCreateForm(forms.ModelForm):
             'sub_category': 'Sous-catégorie',
             'application': 'Application concernée',
             'department': 'Département demandeur',
-            'target_department': 'Envoyer vers le département (optionnel)',
+            'target_department': 'Envoyer vers un autre département',
             'priority': 'Priorité',
         }
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+
+        # Sous-catégories
         self.fields['sub_category'].queryset = SubCategory.objects.none()
         if 'category' in self.data:
             try:
@@ -40,18 +42,38 @@ class TicketCreateForm(forms.ModelForm):
             self.fields['sub_category'].queryset = SubCategory.objects.filter(
                 category=self.instance.category, is_active=True
             )
-        # Pre-fill department from user
-        if user and user.department and not self.instance.pk:
+
+        # Département du demandeur : pré-rempli depuis le compte, non modifiable
+        from apps.accounts.models import Department
+        if user and user.department:
             self.fields['department'].initial = user.department
+            self.fields['department'].queryset = Department.objects.filter(pk=user.department.pk)
+            self.fields['department'].widget.attrs['disabled'] = True
+        self.fields['department'].required = False  # la vue le fixe depuis user.department
 
-        # Help text for target_department
-        self.fields['target_department'].help_text = (
-            "Laissez vide pour envoyer à l'équipe support. "
-            "Sélectionnez un département pour envoyer directement au manager."
+        # Département cible : uniquement les depts activés par l'admin (non-IT)
+        enabled_depts = Department.objects.filter(
+            ticketing_enabled=True, is_it_department=False, is_active=True
         )
+        self.fields['target_department'].queryset = enabled_depts
         self.fields['target_department'].required = False
+        self._has_target_depts = enabled_depts.exists()
 
+        if self._has_target_depts:
+            self.fields['target_department'].help_text = (
+                "Laissez vide pour envoyer à l'équipe support IT. "
+                "Sélectionnez un département si votre demande concerne un autre service."
+            )
+
+        # Construction du layout selon les depts disponibles
         self.helper = FormHelper()
+        dept_row = (
+            Row(
+                Column('department', css_class='col-md-6'),
+                Column('target_department', css_class='col-md-6'),
+            )
+            if self._has_target_depts else 'department'
+        )
         self.helper.layout = Layout(
             'title',
             Row(
@@ -62,10 +84,7 @@ class TicketCreateForm(forms.ModelForm):
                 Column('application', css_class='col-md-6'),
                 Column('priority', css_class='col-md-6'),
             ),
-            Row(
-                Column('department', css_class='col-md-6'),
-                Column('target_department', css_class='col-md-6'),
-            ),
+            dept_row,
             'description',
             Submit('submit', 'Créer le ticket', css_class='btn btn-primary'),
         )
@@ -133,6 +152,7 @@ class TicketRequestInfoForm(forms.Form):
     info_requested_from = forms.ModelChoiceField(
         label='Demander l\'information à',
         queryset=None,
+        help_text='Les administrateurs ne peuvent pas être destinataires d\'une demande d\'info.'
     )
     comment = forms.CharField(
         label='Message / Question',
@@ -143,9 +163,53 @@ class TicketRequestInfoForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from apps.accounts.models import User
-        self.fields['info_requested_from'].queryset = User.objects.filter(is_active=True).order_by('last_name')
+        # Les admins sont exclus : ils ne reçoivent pas de demandes d'info
+        self.fields['info_requested_from'].queryset = User.objects.filter(
+            is_active=True
+        ).exclude(role=User.ROLE_ADMIN).order_by('last_name', 'first_name')
         self.helper = FormHelper()
         self.helper.add_input(Submit('submit', 'Envoyer la demande', css_class='btn btn-warning btn-sm'))
+
+
+class TicketRespondInfoForm(forms.Form):
+    """Formulaire utilisé par info_requested_from pour répondre à la demande."""
+    response = forms.CharField(
+        label='Votre réponse',
+        widget=forms.Textarea(attrs={
+            'rows': 4,
+            'placeholder': 'Répondez ici à la demande d\'information...'
+        }),
+        required=True
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.add_input(Submit('submit', 'Envoyer ma réponse', css_class='btn btn-success btn-sm'))
+
+
+class TicketTransferDeptForm(forms.Form):
+    """Formulaire de transfert d'un ticket vers un autre département activé (agent/admin)."""
+    target_department = forms.ModelChoiceField(
+        label='Département cible',
+        queryset=None,
+        help_text='Ce ticket sera transmis au manager de ce département pour distribution.'
+    )
+    comment = forms.CharField(
+        label='Motif du transfert',
+        widget=forms.Textarea(attrs={'rows': 2, 'placeholder': 'Expliquer pourquoi ce ticket est transféré...'}),
+        required=False
+    )
+
+    def __init__(self, *args, exclude_dept=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from apps.accounts.models import Department
+        qs = Department.objects.filter(ticketing_enabled=True, is_it_department=False, is_active=True)
+        if exclude_dept:
+            qs = qs.exclude(pk=exclude_dept.pk)
+        self.fields['target_department'].queryset = qs.order_by('name')
+        self.helper = FormHelper()
+        self.helper.add_input(Submit('submit', 'Transférer', css_class='btn btn-info btn-sm'))
 
 
 class TicketStatusForm(forms.Form):

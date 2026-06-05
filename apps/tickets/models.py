@@ -227,6 +227,12 @@ class Ticket(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
         related_name='info_requested_tickets', verbose_name='Demande d\'info à'
     )
+    # Responsable courant du ticket (ball-in-court Jira) :
+    # = assigned_to en temps normal ; = info_requested_from pendant ATTENTE_INFO
+    responsable = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='responsible_tickets', verbose_name='Responsable courant'
+    )
 
     # ---- Dates ----
     created_at = models.DateTimeField('Créé le', auto_now_add=True)
@@ -275,10 +281,16 @@ class Ticket(models.Model):
 
     def _generate_number(self):
         from django.db.models import Max
-        year = timezone.now().year
-        dept_code = 'GEN'
-        if self.created_by and self.created_by.department:
-            dept_code = self.created_by.department.code
+        from apps.accounts.models import Department
+
+        # La référence identifie le département qui REÇOIT la demande
+        if self.target_department:
+            dept_code = self.target_department.code
+        else:
+            # Par défaut : département IT
+            it_dept = Department.objects.filter(is_it_department=True, is_active=True).first()
+            dept_code = it_dept.code if it_dept else 'GEN'
+
         prefix = f"OMCM-{dept_code}-"
         last = Ticket.objects.filter(number__startswith=prefix).aggregate(Max('number'))['number__max']
         if last:
@@ -515,14 +527,20 @@ class Ticket(models.Model):
         return []
 
     def can_user_reassign(self, user):
-        """L'admin peut réaffecter sauf si le ticket est résolu ou clôturé."""
+        """Qui peut réaffecter ce ticket selon son statut."""
         from apps.accounts.models import User as U
         if user.role == U.ROLE_ADMIN:
+            # Admin : tout sauf les statuts terminaux
             return self.status not in [self.STATUS_RESOLU, self.STATUS_CLOTURE, self.STATUS_REJETE, self.STATUS_ANNULE]
         if user.role == U.ROLE_AGENT:
+            # Agent : seulement NOUVEAU (une fois EN_COURS, seul l'admin peut réaffecter)
             return self.status == self.STATUS_NOUVEAU
         if user.role == U.ROLE_MANAGER:
-            return self.status in [self.STATUS_NOUVEAU, self.STATUS_AFFECTE]
+            is_my_dept = (
+                self.target_department == user.department or
+                self.department == user.department
+            )
+            return is_my_dept and self.status in [self.STATUS_NOUVEAU, self.STATUS_AFFECTE]
         return False
 
     def can_user_see(self, user):
@@ -542,9 +560,10 @@ class Ticket(models.Model):
         # Demandeur : tickets de son département
         if user.role == U.ROLE_DEMANDEUR:
             return self.created_by.department == user.department
-        # Visibilité temporaire pour demande d'info
-        if self.info_requested_from == user and self.status == self.STATUS_ATTENTE_INFO:
-            return True
+        # Visibilité temporaire : info_requested_from ou responsable courant en ATTENTE_INFO
+        if self.status == self.STATUS_ATTENTE_INFO:
+            if self.info_requested_from == user or self.responsable == user:
+                return True
         return False
 
 

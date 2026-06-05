@@ -6,7 +6,7 @@ from .models import User, Department
 
 
 class UserRegisterForm(UserCreationForm):
-    email = forms.EmailField(required=True)
+    email = forms.EmailField(required=True, label='Adresse e-mail')
     first_name = forms.CharField(max_length=150, required=True, label='Prénom')
     last_name = forms.CharField(max_length=150, required=True, label='Nom')
 
@@ -16,6 +16,9 @@ class UserRegisterForm(UserCreationForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['department'].required = True
+        self.fields['department'].queryset = Department.objects.filter(is_active=True).order_by('name')
+        self.fields['department'].help_text = 'Obligatoire — détermine la visibilité de vos tickets.'
         self.helper = FormHelper()
         self.helper.layout = Layout(
             Row(Column('first_name', css_class='col-md-6'), Column('last_name', css_class='col-md-6')),
@@ -50,12 +53,16 @@ class UserProfileForm(forms.ModelForm):
 
 
 class UserAdminForm(forms.ModelForm):
+    email = forms.EmailField(required=True, label='Adresse e-mail')
+
     class Meta:
         model = User
         fields = ['username', 'first_name', 'last_name', 'email', 'role', 'department', 'phone', 'is_active']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['department'].required = True
+        self.fields['department'].queryset = Department.objects.filter(is_active=True).order_by('name')
         self.helper = FormHelper()
         self.helper.layout = Layout(
             Row(Column('username', css_class='col-md-6'), Column('role', css_class='col-md-6')),

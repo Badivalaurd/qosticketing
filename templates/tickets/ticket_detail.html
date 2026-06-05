@@ -258,13 +258,51 @@
     </div>
     {% endif %}
 
-    <!-- Demande d'information (technicien/agent/admin, si EN_COURS) -->
-    {% if can_request_info and ticket.status == 'EN_COURS' %}
+    <!-- Demande d'information (technicien/agent, si EN_COURS) -->
+    {% if can_request_info %}
     <div class="card mb-3">
       <div class="card-header"><i class="bi bi-question-circle me-2 text-warning"></i>Demande d'information</div>
       <div class="card-body">
         <form method="post" action="{% url 'tickets:request_info' ticket.number %}">
           {% csrf_token %}{% crispy request_info_form %}
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Répondre à une demande d'information (uniquement la personne sollicitée) -->
+    {% if can_respond_info %}
+    <div class="card mb-3 border-warning">
+      <div class="card-header bg-warning bg-opacity-10 fw-semibold">
+        <i class="bi bi-reply-fill me-2 text-warning"></i>Répondre à la demande d'information
+      </div>
+      <div class="card-body">
+        <p class="small text-muted mb-2">
+          Votre réponse sera ajoutée comme commentaire visible et le ticket retournera au technicien.
+        </p>
+        <form method="post" action="{% url 'tickets:respond_info' ticket.number %}" enctype="multipart/form-data">
+          {% csrf_token %}{% crispy respond_info_form %}
+          <div class="mt-2">
+            <label class="form-label small text-muted">Pièce jointe (optionnel)</label>
+            <input type="file" name="files" class="form-control form-control-sm" multiple
+                   accept=".pdf,.xls,.xlsx,.doc,.docx,.png,.jpg,.jpeg,.gif,.txt,.log,.csv">
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Transférer vers un autre département -->
+    {% if can_transfer_dept %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-send me-2 text-info"></i>Transférer à un département</div>
+      <div class="card-body">
+        <p class="small text-muted mb-2">
+          Ce ticket sera transmis au manager du département cible pour distribution.
+          Cette action ne constitue pas une prise en charge — le ticket reste NOUVEAU.
+        </p>
+        <form method="post" action="{% url 'tickets:transfer_dept' ticket.number %}">
+          {% csrf_token %}{% crispy transfer_dept_form %}
         </form>
       </div>
     </div>
@@ -301,6 +339,23 @@
           {% endif %}
           <tr><td class="text-muted fw-600">Assigné à</td>
             <td>{{ ticket.assigned_to.get_full_name|default:"Non affecté" }}</td></tr>
+          {% if ticket.responsable and ticket.responsable != ticket.assigned_to %}
+          <tr><td class="text-muted fw-600">Responsable courant</td>
+            <td>
+              <span class="badge bg-warning text-dark">
+                <i class="bi bi-person-raised-hand me-1"></i>{{ ticket.responsable.get_full_name|default:ticket.responsable.username }}
+              </span>
+              <span class="small text-muted ms-1">— en attente de réponse</span>
+            </td></tr>
+          {% elif ticket.status == 'ATTENTE_INFO' and ticket.info_requested_from %}
+          <tr><td class="text-muted fw-600">Responsable courant</td>
+            <td>
+              <span class="badge bg-warning text-dark">
+                <i class="bi bi-person-raised-hand me-1"></i>{{ ticket.info_requested_from.get_full_name|default:ticket.info_requested_from.username }}
+              </span>
+              <span class="small text-muted ms-1">— en attente de réponse</span>
+            </td></tr>
+          {% endif %}
           {% if ticket.application %}
           <tr><td class="text-muted fw-600">Application</td>
             <td>{{ ticket.application.name }}</td></tr>

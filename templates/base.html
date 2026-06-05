@@ -46,12 +46,11 @@
       </a>
     </div>
 
-    {% if user.is_it_member or user.projects.exists %}
+    {% if user.is_it_member %}
     <div class="nav-section">
       <div class="nav-section-label">Projets</div>
       <a href="{% url 'projects:list' %}" class="nav-link {% if request.resolver_match.app_name == 'projects' %}active{% endif %}">
         <i class="bi bi-kanban"></i><span>Projets</span>
-        {% if not user.is_it_member %}<span class="badge">{{ user.projects.count }}</span>{% endif %}
       </a>
     </div>
     {% endif %}
@@ -131,10 +130,12 @@
 
     <div class="d-flex align-items-center gap-2">
       <!-- Quick search -->
-      <form class="d-none d-lg-block" action="{% url 'tickets:list' %}" method="get">
+      <form class="d-none d-lg-block" action="{% url 'tickets:search' %}" method="get">
         <div class="input-group input-group-sm">
           <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-          <input type="text" name="search" class="form-control border-start-0 ps-0" placeholder="Rechercher un ticket..." style="width:220px">
+          <input type="text" name="q" class="form-control border-start-0 ps-0"
+                 placeholder="Référence ou mot-clé..." style="width:220px"
+                 autocomplete="off">
         </div>
       </form>
 

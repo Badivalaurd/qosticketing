@@ -9,6 +9,7 @@ from django.db.models import Q
 from .models import Ticket, Comment, Attachment, TicketHistory, Category, SubCategory, SLAConfig
 from .forms import (
     TicketCreateForm, TicketEditForm, TicketAssignForm, TicketRequestInfoForm,
+    TicketRespondInfoForm, TicketTransferDeptForm,
     TicketStatusForm, TicketPriorityForm, CommentForm, AttachmentForm, TicketFilterForm
 )
 from apps.notifications.utils import send_ticket_notification
@@ -16,14 +17,35 @@ from apps.accounts.models import User
 import re
 
 
-def get_tickets_for_user(user):
-    """Retourne le queryset de tickets visibles pour l'utilisateur."""
+def get_tickets_for_user(user, tab='it'):
+    """
+    Retourne le queryset de tickets visibles pour l'utilisateur.
+
+    tab='it'    → tickets du département IT (défaut)
+    tab='autres' → tickets des depts activés non-IT (admin/agent seulement)
+    """
+    from apps.accounts.models import Department
     qs = Ticket.objects.select_related(
-        'category', 'application', 'department', 'created_by', 'assigned_to', 'target_department'
+        'category', 'application', 'department', 'created_by', 'assigned_to',
+        'target_department', 'responsable'
     )
 
-    # Admin, Agent, Technicien → tout voir
-    if user.role in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_TECHNICIEN]:
+    if user.role in [User.ROLE_ADMIN, User.ROLE_AGENT]:
+        if tab == 'autres':
+            # Tickets dont la cible est un dept ticketing activé non-IT
+            other_depts = Department.objects.filter(
+                ticketing_enabled=True, is_it_department=False, is_active=True
+            )
+            return qs.filter(target_department__in=other_depts)
+        else:
+            # Tab IT : tickets IT (cible IT ou pas de cible spécifique non-IT)
+            other_depts = Department.objects.filter(
+                ticketing_enabled=True, is_it_department=False, is_active=True
+            )
+            return qs.exclude(target_department__in=other_depts)
+
+    # Technicien → tout voir (IT uniquement)
+    if user.role == User.ROLE_TECHNICIEN:
         return qs
 
     # Observateur IT → tout voir ; sinon son dept
@@ -51,10 +73,18 @@ class TicketListView(LoginRequiredMixin, ListView):
     model = Ticket
     template_name = 'tickets/ticket_list.html'
     context_object_name = 'tickets'
-    paginate_by = 20
+    paginate_by = 25
+
+    def get_paginate_by(self, queryset):
+        try:
+            per_page = int(self.request.GET.get('per_page', 25))
+        except (ValueError, TypeError):
+            per_page = 25
+        return per_page if per_page in (10, 25, 50, 100) else 25
 
     def get_queryset(self):
-        qs = get_tickets_for_user(self.request.user)
+        tab = self.request.GET.get('tab', 'it')
+        qs = get_tickets_for_user(self.request.user, tab=tab)
         form = self.filter_form
         if form.is_valid():
             d = form.cleaned_data
@@ -91,9 +121,18 @@ class TicketListView(LoginRequiredMixin, ListView):
         return self._filter_form
 
     def get_context_data(self, **kwargs):
+        from apps.accounts.models import Department
         ctx = super().get_context_data(**kwargs)
         ctx['filter_form'] = self.filter_form
         ctx['total_count'] = self.get_queryset().count()
+        ctx['per_page'] = self.get_paginate_by(None)
+        ctx['current_tab'] = self.request.GET.get('tab', 'it')
+        user = self.request.user
+        ctx['show_autres_tab'] = user.role in [User.ROLE_ADMIN, User.ROLE_AGENT]
+        if ctx['show_autres_tab']:
+            ctx['autres_count'] = get_tickets_for_user(user, tab='autres').filter(
+                status=Ticket.STATUS_NOUVEAU
+            ).count()
         return ctx
 
 
@@ -102,12 +141,21 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
     template_name = 'tickets/ticket_detail.html'
     context_object_name = 'ticket'
 
+    def get(self, request, *args, **kwargs):
+        try:
+            ticket = Ticket.objects.get(number=kwargs['number'])
+        except Ticket.DoesNotExist:
+            messages.error(request, "Ticket introuvable.")
+            return redirect('tickets:list')
+        if not ticket.can_user_see(request.user):
+            messages.error(request, "Ticket introuvable ou vous n'avez pas les droits pour y accéder.")
+            return redirect('tickets:list')
+        self.object = ticket
+        context = self.get_context_data(object=self.object)
+        return self.render_to_response(context)
+
     def get_object(self):
-        ticket = get_object_or_404(Ticket, number=self.kwargs['number'])
-        if not ticket.can_user_see(self.request.user):
-            from django.core.exceptions import PermissionDenied
-            raise PermissionDenied
-        return ticket
+        return self.object
 
     def get_context_data(self, **kwargs):
         from django.core.paginator import Paginator
@@ -152,20 +200,42 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
         ctx['allowed_transitions'] = ticket.get_allowed_transitions(user)
         ctx['status_form'] = TicketStatusForm(ticket=ticket, user=user)
 
-        # Formulaire d'affectation (admin, agent, manager)
-        can_assign = (
-            user.role in [User.ROLE_ADMIN, User.ROLE_AGENT] or
-            (user.role == User.ROLE_MANAGER and
-             ticket.target_department and ticket.target_department == user.department)
-        )
+        # Formulaire d'affectation (basé sur can_user_reassign)
+        can_assign = ticket.can_user_reassign(user)
         ctx['can_assign'] = can_assign
         if can_assign:
             ctx['assign_form'] = TicketAssignForm(instance=ticket, current_user=user)
 
-        # Formulaire demande d'info
-        ctx['can_request_info'] = user.role in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_TECHNICIEN, User.ROLE_MANAGER]
-        if ctx['can_request_info'] and ticket.status == Ticket.STATUS_EN_COURS:
+        # Formulaire demande d'info (pas les admins, seulement EN_COURS)
+        ctx['can_request_info'] = (
+            user.role in [User.ROLE_AGENT, User.ROLE_TECHNICIEN, User.ROLE_MANAGER] and
+            ticket.status == Ticket.STATUS_EN_COURS
+        )
+        if ctx['can_request_info']:
             ctx['request_info_form'] = TicketRequestInfoForm()
+
+        # Répondre à une demande d'info (uniquement la personne sollicitée)
+        ctx['can_respond_info'] = (
+            ticket.info_requested_from == user and
+            ticket.status == Ticket.STATUS_ATTENTE_INFO
+        )
+        if ctx['can_respond_info']:
+            ctx['respond_info_form'] = TicketRespondInfoForm()
+
+        # Transférer vers un autre département (admin/agent, seulement NOUVEAU)
+        from apps.accounts.models import Department
+        has_other_depts = Department.objects.filter(
+            ticketing_enabled=True, is_it_department=False, is_active=True
+        ).exists()
+        ctx['can_transfer_dept'] = (
+            user.role in [User.ROLE_ADMIN, User.ROLE_AGENT] and
+            ticket.status == Ticket.STATUS_NOUVEAU and
+            has_other_depts
+        )
+        if ctx['can_transfer_dept']:
+            ctx['transfer_dept_form'] = TicketTransferDeptForm(
+                exclude_dept=ticket.target_department
+            )
 
         # Redéfinition de priorité (admin et agent seulement, hors statuts terminaux)
         ctx['can_change_priority'] = (
@@ -268,6 +338,11 @@ def ticket_change_status(request, number):
             elif new_status in Ticket.SLA_PAUSE_STATUSES:
                 ticket.pause_sla()
 
+            # Quitter ATTENTE_INFO → réinitialiser responsable et info_requested_from
+            if old_status == Ticket.STATUS_ATTENTE_INFO and new_status != Ticket.STATUS_ATTENTE_INFO:
+                ticket.info_requested_from = None
+                ticket.responsable = ticket.assigned_to
+
             ticket.status = new_status
 
             # Dates clés
@@ -328,13 +403,11 @@ def ticket_assign(request, number):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucune modification n'est possible.")
         return redirect('tickets:detail', number=number)
 
-    can = (
-        user.role in [User.ROLE_ADMIN, User.ROLE_AGENT] or
-        (user.role == User.ROLE_MANAGER and
-         ticket.target_department and ticket.target_department == user.department)
-    )
-    if not can:
-        messages.error(request, "Affectation non autorisée.")
+    if not ticket.can_user_reassign(user):
+        if ticket.status == Ticket.STATUS_EN_COURS and user.role == User.ROLE_AGENT:
+            messages.error(request, "Le ticket est EN COURS — seul l'administrateur peut le réaffecter.")
+        else:
+            messages.error(request, "Affectation non autorisée.")
         return redirect('tickets:detail', number=number)
 
     if request.method == 'POST':
@@ -343,10 +416,11 @@ def ticket_assign(request, number):
             old_assignee = ticket.assigned_to
             ticket = form.save(commit=False)
             if ticket.assigned_to:
-                # Réinitialisation SLA à chaque affectation/réaffectation (logique JIRA)
                 ticket.reset_sla_on_assign()
                 if ticket.status == Ticket.STATUS_NOUVEAU:
                     ticket.status = Ticket.STATUS_AFFECTE
+                # Responsable courant = technicien assigné
+                ticket.responsable = ticket.assigned_to
             ticket.save()
             TicketHistory.objects.create(
                 ticket=ticket, user=user,
@@ -375,6 +449,7 @@ def ticket_request_info(request, number):
             ticket.pause_sla()
             ticket.status = Ticket.STATUS_ATTENTE_INFO
             ticket.info_requested_from = info_user
+            ticket.responsable = info_user  # balle chez la personne sollicitée
             ticket.save()
 
             Comment.objects.create(
@@ -412,13 +487,28 @@ def add_comment(request, number):
             if user.role == User.ROLE_DEMANDEUR:
                 comment.is_internal = False
             comment.save()
-            # Mentions @username
-            for username in re.findall(r'@(\w+)', comment.content):
-                try:
-                    mentioned = User.objects.get(username=username)
-                    send_ticket_notification(ticket, 'mentioned', recipient=mentioned)
-                except User.DoesNotExist:
-                    pass
+            # Mentions @admin, @agent, ou @username
+            already_notified = set()
+            for token in re.findall(r'@(\w+)', comment.content):
+                token_lower = token.lower()
+                if token_lower == 'admin':
+                    for u in User.objects.filter(role=User.ROLE_ADMIN, is_active=True):
+                        if u.pk not in already_notified:
+                            send_ticket_notification(ticket, 'mentioned', recipient=u)
+                            already_notified.add(u.pk)
+                elif token_lower == 'agent':
+                    for u in User.objects.filter(role=User.ROLE_AGENT, is_active=True):
+                        if u.pk not in already_notified:
+                            send_ticket_notification(ticket, 'mentioned', recipient=u)
+                            already_notified.add(u.pk)
+                else:
+                    try:
+                        mentioned = User.objects.get(username=token)
+                        if mentioned.pk not in already_notified:
+                            send_ticket_notification(ticket, 'mentioned', recipient=mentioned)
+                            already_notified.add(mentioned.pk)
+                    except User.DoesNotExist:
+                        pass
             TicketHistory.objects.create(ticket=ticket, user=user, action="Commentaire ajouté")
             send_ticket_notification(ticket, 'comment_added')
             messages.success(request, "Commentaire ajouté.")
@@ -493,6 +583,32 @@ def ticket_change_priority(request, number):
                 messages.info(request, "La priorité est déjà à ce niveau.")
 
     return redirect('tickets:detail', number=number)
+
+
+@login_required
+def ticket_search(request):
+    """
+    Recherche rapide par référence depuis la navbar.
+    - Correspondance exacte → redirige vers le ticket (si accès autorisé)
+    - Aucune correspondance exacte → redirige vers la liste avec le terme en filtre
+    """
+    query = request.GET.get('q', '').strip()
+    if not query:
+        return redirect('tickets:list')
+
+    # Tentative de correspondance exacte (insensible à la casse)
+    try:
+        ticket = Ticket.objects.get(number__iexact=query)
+        if ticket.can_user_see(request.user):
+            return redirect('tickets:detail', number=ticket.number)
+        else:
+            messages.error(request, "Ticket introuvable ou vous n'avez pas les droits pour y accéder.")
+            return redirect('tickets:list')
+    except Ticket.DoesNotExist:
+        pass
+
+    # Fallback : recherche générale dans la liste
+    return redirect(f"{request.build_absolute_uri('/')[:-1]}{''.join(['/tickets/?search=', query])}")
 
 
 @login_required
@@ -571,3 +687,104 @@ def sla_config_view(request):
     ]
 
     return render(request, 'tickets/sla_config.html', {'sla_items': sla_items})
+
+
+@login_required
+def ticket_respond_info(request, number):
+    """La personne sollicitée répond à la demande d'information."""
+    ticket = get_object_or_404(Ticket, number=number)
+
+    if ticket.info_requested_from != request.user:
+        messages.error(request, "Seule la personne sollicitée peut répondre à cette demande.")
+        return redirect('tickets:detail', number=number)
+
+    if ticket.status != Ticket.STATUS_ATTENTE_INFO:
+        messages.error(request, "Ce ticket n'est pas en attente d'information.")
+        return redirect('tickets:detail', number=number)
+
+    if request.method == 'POST':
+        form = TicketRespondInfoForm(request.POST)
+        if form.is_valid():
+            response_text = form.cleaned_data['response']
+            old_status = ticket.status
+
+            # Reprendre le SLA
+            ticket.resume_sla()
+
+            # Remettre le ticket EN_COURS
+            ticket.status = Ticket.STATUS_EN_COURS
+
+            # Rendre le responsable au technicien assigné
+            ticket.responsable = ticket.assigned_to
+            ticket.info_requested_from = None
+            ticket.save()
+
+            # Publier la réponse comme commentaire visible
+            Comment.objects.create(
+                ticket=ticket, author=request.user,
+                content=response_text, is_internal=False
+            )
+
+            # Pièces jointes optionnelles
+            for f in request.FILES.getlist('files'):
+                Attachment.objects.create(
+                    ticket=ticket, file=f, filename=f.name,
+                    file_size=f.size, content_type=f.content_type or '',
+                    uploaded_by=request.user
+                )
+
+            TicketHistory.objects.create(
+                ticket=ticket, user=request.user,
+                action="Réponse à la demande d'information fournie — ticket retourné au technicien",
+                field_name='status', old_value=old_status, new_value=ticket.status,
+            )
+            send_ticket_notification(ticket, 'info_responded')
+            messages.success(request, "Votre réponse a été envoyée. Le ticket est retourné au technicien.")
+
+    return redirect('tickets:detail', number=number)
+
+
+@login_required
+def ticket_transfer_dept(request, number):
+    """Transfère un ticket vers un autre département activé (agent/admin)."""
+    ticket = get_object_or_404(Ticket, number=number)
+    user = request.user
+
+    if user.role not in [User.ROLE_ADMIN, User.ROLE_AGENT]:
+        messages.error(request, "Action réservée à l'agent de support et à l'administrateur.")
+        return redirect('tickets:detail', number=number)
+
+    if ticket.status != Ticket.STATUS_NOUVEAU:
+        messages.error(request, "Seuls les tickets NOUVEAU peuvent être transférés.")
+        return redirect('tickets:detail', number=number)
+
+    if request.method == 'POST':
+        form = TicketTransferDeptForm(request.POST, exclude_dept=ticket.target_department)
+        if form.is_valid():
+            target_dept = form.cleaned_data['target_department']
+            comment_text = form.cleaned_data.get('comment', '')
+            old_target = ticket.target_department
+
+            ticket.target_department = target_dept
+            ticket.save()
+
+            if comment_text:
+                Comment.objects.create(
+                    ticket=ticket, author=user,
+                    content=comment_text, is_internal=True
+                )
+
+            TicketHistory.objects.create(
+                ticket=ticket, user=user,
+                action=f"Transféré vers le département {target_dept.name}",
+                field_name='target_department',
+                old_value=str(old_target or ''),
+                new_value=str(target_dept),
+            )
+            # Notifier le manager du département cible
+            if target_dept.manager:
+                send_ticket_notification(ticket, 'transferred', recipient=target_dept.manager)
+
+            messages.success(request, f"Ticket transféré vers le département {target_dept.name}.")
+
+    return redirect('tickets:detail', number=number)
