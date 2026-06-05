@@ -386,6 +386,22 @@
 .jira-pagination .page-btn:hover { background: #f4f5f7; border-color: #dfe1e6; }
 .jira-pagination .page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 .jira-pagination .page-btn.disabled { opacity: 0.4; pointer-events: none; }
+.jira-pagination .page-info {
+  font-size: .75rem;
+  color: #7a869a;
+  white-space: nowrap;
+  margin-right: .25rem;
+}
+.jira-pagination .per-page-select {
+  font-size: .75rem;
+  border: 1px solid #dfe1e6;
+  border-radius: 4px;
+  padding: .15rem .4rem;
+  color: #42526e;
+  background: #fff;
+  cursor: pointer;
+  margin-right: .5rem;
+}
 
 /* Active filter tags */
 .active-filters {
@@ -442,6 +458,25 @@
     </a>
   </div>
 </div>
+
+{% if show_autres_tab %}
+<!-- Onglets IT / Autres directions -->
+<ul class="nav nav-tabs mb-3" style="border-bottom:2px solid #dfe1e6;">
+  <li class="nav-item">
+    <a class="nav-link {% if current_tab != 'autres' %}active fw-semibold{% endif %}"
+       href="?tab=it" style="font-size:.85rem;">
+      <i class="bi bi-pc-display me-1"></i>Département Informatique
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if current_tab == 'autres' %}active fw-semibold{% endif %}"
+       href="?tab=autres" style="font-size:.85rem;">
+      <i class="bi bi-diagram-3 me-1"></i>Autres directions
+      {% if autres_count %}<span class="badge bg-warning text-dark ms-1" style="font-size:.7rem;">{{ autres_count }}</span>{% endif %}
+    </a>
+  </li>
+</ul>
+{% endif %}
 
 <form method="get" id="filterForm">
 
@@ -744,10 +779,19 @@
   </table>
 
   <!-- Pagination -->
-  {% if is_paginated %}
+  {% if total_count > 0 %}
   <div class="jira-pagination">
+    <span class="page-info">{{ page_obj.start_index }}–{{ page_obj.end_index }} sur {{ total_count }}</span>
+
+    <select class="per-page-select" onchange="changePerPage(this.value)" title="Éléments par page">
+      <option value="10"  {% if per_page == 10  %}selected{% endif %}>10 / page</option>
+      <option value="25"  {% if per_page == 25  %}selected{% endif %}>25 / page</option>
+      <option value="50"  {% if per_page == 50  %}selected{% endif %}>50 / page</option>
+      <option value="100" {% if per_page == 100 %}selected{% endif %}>100 / page</option>
+    </select>
+
     {% if page_obj.has_previous %}
-    <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}"
+    <a href="?{% for k,v in request.GET.items %}{% if k != 'page' and k != 'per_page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}per_page={{ per_page }}&page={{ page_obj.previous_page_number }}"
        class="page-btn" title="Précédent"><i class="bi bi-chevron-left" style="font-size:.7rem"></i></a>
     {% else %}
     <span class="page-btn disabled"><i class="bi bi-chevron-left" style="font-size:.7rem"></i></span>
@@ -757,13 +801,13 @@
       {% if page_obj.number == num %}
         <span class="page-btn active">{{ num }}</span>
       {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ num }}"
+        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' and k != 'per_page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}per_page={{ per_page }}&page={{ num }}"
            class="page-btn">{{ num }}</a>
       {% endif %}
     {% endfor %}
 
     {% if page_obj.has_next %}
-    <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}"
+    <a href="?{% for k,v in request.GET.items %}{% if k != 'page' and k != 'per_page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}per_page={{ per_page }}&page={{ page_obj.next_page_number }}"
        class="page-btn" title="Suivant"><i class="bi bi-chevron-right" style="font-size:.7rem"></i></a>
     {% else %}
     <span class="page-btn disabled"><i class="bi bi-chevron-right" style="font-size:.7rem"></i></span>
@@ -777,6 +821,12 @@
 
 {% block extra_js %}
 <script>
+function changePerPage(val) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('per_page', val);
+  url.searchParams.set('page', '1');
+  window.location.href = url.toString();
+}
 // ── Filter pill toggles ──────────────────────────────────────────
 function togglePill(pillId) {
   const allDrops = document.querySelectorAll('.filter-dropdown');

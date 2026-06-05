@@ -12,6 +12,21 @@ class Department(models.Model):
         default=False,
         help_text='Les membres de ce département ont une vue globale sur tous les tickets.'
     )
+    ticketing_enabled = models.BooleanField(
+        'Ticketing activé',
+        default=False,
+        help_text=(
+            'Ce département peut recevoir des tickets depuis d\'autres départements. '
+            'Activez uniquement après accord contractuel. '
+            'Le département Informatique est toujours actif par défaut.'
+        )
+    )
+    manager = models.ForeignKey(
+        'User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='managed_department',
+        verbose_name='Manager ticketing',
+        help_text='Responsable de la distribution des tickets dans ce département (hors IT).'
+    )
     is_active = models.BooleanField('Actif', default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -22,6 +37,11 @@ class Department(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def accepts_tickets(self):
+        """Vrai si ce département peut recevoir des tickets (IT toujours, autres si activés)."""
+        return self.is_it_department or self.ticketing_enabled
 
 
 class User(AbstractUser):

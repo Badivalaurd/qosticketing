@@ -45,6 +45,15 @@ def send_ticket_notification(ticket, event, recipient=None):
     elif event == 'mentioned' and recipient:
         recipients.add(recipient)
 
+    elif event == 'info_responded':
+        # Notifier le technicien assigné que la réponse est arrivée
+        if ticket.assigned_to:
+            recipients.add(ticket.assigned_to)
+
+    elif event == 'transferred' and recipient:
+        # Notifier le manager du département cible
+        recipients.add(recipient)
+
     url = reverse('tickets:detail', kwargs={'number': ticket.number})
 
     event_titles = {
@@ -54,6 +63,8 @@ def send_ticket_notification(ticket, event, recipient=None):
         'comment_added':  f"Commentaire sur {ticket.number}",
         'sla_exceeded':   f"SLA dépassé — {ticket.number}",
         'mentioned':      f"Mention dans {ticket.number}",
+        'info_responded': f"Réponse reçue sur {ticket.number}",
+        'transferred':    f"Ticket {ticket.number} transféré",
     }
     event_messages = {
         'created':        f"Le ticket «{ticket.title}» a été créé.",
@@ -62,6 +73,8 @@ def send_ticket_notification(ticket, event, recipient=None):
         'comment_added':  f"Nouveau commentaire sur «{ticket.title}».",
         'sla_exceeded':   f"SLA dépassé sur «{ticket.title}».",
         'mentioned':      f"Vous avez été mentionné dans «{ticket.title}».",
+        'info_responded': f"La demande d'information sur «{ticket.title}» a reçu une réponse.",
+        'transferred':    f"Le ticket «{ticket.title}» a été transféré à votre département.",
     }
     event_types = {
         'created':        Notification.TYPE_INFO,
@@ -70,6 +83,8 @@ def send_ticket_notification(ticket, event, recipient=None):
         'comment_added':  Notification.TYPE_INFO,
         'sla_exceeded':   Notification.TYPE_DANGER,
         'mentioned':      Notification.TYPE_WARNING,
+        'info_responded': Notification.TYPE_SUCCESS,
+        'transferred':    Notification.TYPE_WARNING,
     }
 
     for user in recipients:
