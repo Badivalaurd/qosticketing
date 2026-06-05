@@ -1,0 +1,68 @@
+{% extends 'email/base_email.html' %}
+
+{% block header_label %}Alerte SLA{% endblock %}
+
+{% block event_banner %}
+<div style="background:#fff8e1;border-bottom:1px solid #ffe082;padding:12px 28px;display:flex;align-items:center;gap:10px;">
+  <span style="width:32px;height:32px;background:#ff991f;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:17px;line-height:32px;text-align:center;">⏱</span>
+  <div>
+    <div style="font-size:13px;font-weight:700;color:#a85400;">Alerte : SLA expire dans {{ time_label }}</div>
+    <div style="font-size:11px;color:#97a0af;margin-top:1px;">Action requise avant dépassement du délai contractuel</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="greeting">Bonjour <strong>{{ recipient_name }}</strong>,</p>
+
+<div class="alert-box alert-warning">
+  <div class="alert-title" style="color:#a85400;">&#9888; Délai SLA — Expiration dans {{ time_label }}</div>
+  <div class="alert-body">Il vous reste environ <strong>{{ minutes_left }} minute{% if minutes_left > 1 %}s{% endif %}</strong> pour traiter ce ticket avant dépassement du SLA de traitement.</div>
+</div>
+
+<div class="ticket-box">
+  <div style="padding:14px 16px;">
+    <span class="ticket-num">{{ ticket.number }}</span>
+    <div class="ticket-title">{{ ticket.title }}</div>
+  </div>
+  <div class="ticket-meta">
+    <div class="meta-col">
+      <div class="meta-label">Priorité</div>
+      <div class="meta-value">
+        <span class="prio prio-{{ ticket.priority|slice:':2' }}">{{ ticket.priority }}</span>
+      </div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Statut</div>
+      <div class="meta-value">{{ ticket.status }}</div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Échéance SLA</div>
+      <div class="meta-value" style="color:#bf2600;font-weight:700;">{{ ticket.deadline|date:"d/m/Y H:i" }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Barre de progression SLA -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">
+  <tr>
+    <td style="font-size:11px;color:#97a0af;padding-bottom:5px;">Consommation SLA</td>
+    <td align="right" style="font-size:11px;color:#a85400;font-weight:700;padding-bottom:5px;">
+      {% if minutes_left <= 10 %}90%+{% elif minutes_left <= 30 %}75%+{% else %}60%+{% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <div style="background:#f0f2f5;border-radius:4px;height:8px;overflow:hidden;">
+        <div style="background:{% if minutes_left <= 10 %}#de350b{% elif minutes_left <= 30 %}#ff991f{% else %}#ffca28{% endif %};height:8px;border-radius:4px;width:{% if minutes_left <= 10 %}90%{% elif minutes_left <= 30 %}75%{% else %}62%{% endif %};"></div>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="cta">
+  <a href="{{ ticket.url }}" class="btn" style="background:#a85400;">&#9889;&nbsp; Traiter maintenant</a>
+</div>
+
+<p style="font-size:11px;color:#97a0af;text-align:center;margin-top:16px;">Le non-respect du SLA est tracé et inclus dans les rapports de performance mensuelle.</p>
+{% endblock %}

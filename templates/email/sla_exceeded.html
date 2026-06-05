@@ -1,0 +1,53 @@
+{% extends 'email/base_email.html' %}
+
+{% block header_label %}SLA Dépassé{% endblock %}
+
+{% block event_banner %}
+<div style="background:#ffebe6;border-bottom:1px solid #ffbdad;padding:12px 28px;display:flex;align-items:center;gap:10px;">
+  <span style="width:32px;height:32px;background:#de350b;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:17px;line-height:32px;text-align:center;">🚨</span>
+  <div>
+    <div style="font-size:13px;font-weight:700;color:#bf2600;">Dépassement SLA — Action immédiate requise</div>
+    <div style="font-size:11px;color:#97a0af;margin-top:1px;">Le délai contractuel de traitement a été dépassé</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="greeting">Bonjour <strong>{{ recipient_name }}</strong>,</p>
+
+<div class="alert-box alert-danger">
+  <div class="alert-title" style="color:#bf2600;">&#128680; SLA de traitement dépassé</div>
+  <div class="alert-body">Ce ticket dépasse le délai contractuel de traitement. Une <strong>action immédiate</strong> est nécessaire. Ce dépassement sera enregistré dans les indicateurs de qualité de service.</div>
+</div>
+
+<div class="ticket-box">
+  <div style="padding:14px 16px;">
+    <span class="ticket-num">{{ ticket_number }}</span>
+    <div class="ticket-title">{{ ticket_title }}</div>
+  </div>
+  <div class="ticket-meta">
+    <div class="meta-col">
+      <div class="meta-label">Priorité</div>
+      <div class="meta-value">
+        <span class="prio prio-{{ ticket_priority|slice:':2' }}">{{ ticket_priority }}</span>
+      </div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Statut</div>
+      <div class="meta-value">{{ ticket_status }}</div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Catégorie</div>
+      <div class="meta-value">{{ ticket_category }}</div>
+    </div>
+  </div>
+</div>
+
+<div style="background:#fff0e6;border:1px solid #ffd6b3;border-radius:8px;padding:12px 16px;margin:16px 0;font-size:12px;color:#a85400;">
+  <strong>OMCM · DSI</strong> — Ce ticket est suivi par la Direction des Systèmes d'Information. Toute escalade doit être signalée au responsable de service.
+</div>
+
+<div class="cta">
+  <a href="{{ ticket_url }}" class="btn" style="background:#bf2600;">&#128680;&nbsp; Résoudre en urgence</a>
+</div>
+{% endblock %}

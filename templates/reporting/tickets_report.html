@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% block title %}Rapport Tickets{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'reporting:index' %}">Reporting</a></li>
+<li class="breadcrumb-item active">Rapport Tickets</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-ticket-detailed me-2 text-orange"></i>Rapport Tickets</h1>
+  <div class="d-flex gap-2">
+    <a href="{% url 'reporting:export_excel' %}" class="btn btn-success btn-sm">
+      <i class="bi bi-file-earmark-excel me-1"></i>Excel
+    </a>
+    <a href="{% url 'reporting:export_csv' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-download me-1"></i>CSV
+    </a>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+  <div class="card-body py-2">
+    <form method="get" class="d-flex flex-wrap gap-3 align-items-end">
+      <div>
+        <label class="small text-muted">Du</label>
+        <input type="date" name="date_from" value="{{ date_from|default:'' }}" class="form-control form-control-sm">
+      </div>
+      <div>
+        <label class="small text-muted">Au</label>
+        <input type="date" name="date_to" value="{{ date_to|default:'' }}" class="form-control form-control-sm">
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
+      </div>
+      <div class="ms-auto small text-muted">
+        <strong>{{ tickets_count }}</strong> ticket{{ tickets_count|pluralize }} dans la période
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- By category -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Par catégorie</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light"><tr><th>Catégorie</th><th class="text-end">Total</th></tr></thead>
+          <tbody>
+            {% for item in by_category %}
+            <tr>
+              <td>{{ item.category__name|default:"Non classé" }}</td>
+              <td class="text-end"><span class="badge bg-primary">{{ item.count }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- By priority -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Par priorité</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light"><tr><th>Priorité</th><th class="text-end">Total</th></tr></thead>
+          <tbody>
+            {% for item in by_priority %}
+            <tr>
+              <td><span class="badge badge-priority-{{ item.priority }} text-white">{{ item.priority }}</span></td>
+              <td class="text-end"><span class="badge bg-secondary">{{ item.count }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- By status -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Par statut</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light"><tr><th>Statut</th><th class="text-end">Total</th></tr></thead>
+          <tbody>
+            {% for item in by_status %}
+            <tr>
+              <td><span class="badge status-{{ item.status }} text-white">{{ item.status }}</span></td>
+              <td class="text-end"><span class="badge bg-secondary">{{ item.count }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLA -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Respect SLA</div>
+      <div class="card-body">
+        <div class="d-flex gap-4">
+          <div class="text-center">
+            <div style="font-size:2rem;font-weight:700;color:#198754">{{ sla_stats.respected }}</div>
+            <div class="small text-muted">Respectés</div>
+          </div>
+          <div class="text-center">
+            <div style="font-size:2rem;font-weight:700;color:#dc3545">{{ sla_stats.exceeded }}</div>
+            <div class="small text-muted">Dépassés</div>
+          </div>
+          {% if sla_stats.respected or sla_stats.exceeded %}
+          <div class="text-center">
+            <div style="font-size:2rem;font-weight:700;color:#0d6efd">
+              {% widthratio sla_stats.respected|add:sla_stats.exceeded 100 sla_stats.respected %}%
+            </div>
+            <div class="small text-muted">Taux respect</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- By agent -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">Charge par agent (Top 10)</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light"><tr><th>Agent</th><th class="text-end">Tickets</th></tr></thead>
+          <tbody>
+            {% for item in by_agent %}
+            <tr>
+              <td>{{ item.assigned_to__first_name }} {{ item.assigned_to__last_name }}</td>
+              <td class="text-end"><span class="badge bg-primary">{{ item.count }}</span></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2" class="text-center text-muted py-3">Aucune donnée</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

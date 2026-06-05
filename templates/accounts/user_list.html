@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Utilisateurs{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Utilisateurs</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-people me-2 text-orange"></i>Utilisateurs</h1>
+  <a href="{% url 'accounts:user_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-2"></i>Nouvel utilisateur
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-3">
+    <div class="filter-card">
+      <form method="get">
+        <div class="mb-2">
+          <input type="text" name="search" value="{{ request.GET.search }}" class="form-control form-control-sm" placeholder="Rechercher...">
+        </div>
+        <div class="mb-2">
+          <select name="role" class="form-select form-select-sm">
+            <option value="">Tous les rôles</option>
+            {% for val, label in roles %}
+            <option value="{{ val }}" {% if request.GET.role == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-2">
+          <select name="department" class="form-select form-select-sm">
+            <option value="">Toutes les directions</option>
+            {% for dept in departments %}
+            <option value="{{ dept.pk }}" {% if request.GET.department == dept.pk|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm w-100">Filtrer</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-9">
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr><th>Utilisateur</th><th>Rôle</th><th>Direction</th><th>Email</th><th>Statut</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div class="avatar-sm" style="width:32px;height:32px;font-size:0.8rem">{{ u.first_name|first|default:u.username|first|upper }}</div>
+                  <div>
+                    <div class="fw-600 small">{{ u.get_full_name|default:u.username }}</div>
+                    <div class="text-muted" style="font-size:0.75rem">@{{ u.username }}</div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="badge bg-secondary small">{{ u.get_role_display }}</span></td>
+              <td class="small">{{ u.department.name|default:"—" }}</td>
+              <td class="small">{{ u.email }}</td>
+              <td>
+                {% if u.is_active %}<span class="badge bg-success">Actif</span>
+                {% else %}<span class="badge bg-secondary">Inactif</span>{% endif %}
+              </td>
+              <td>
+                <a href="{% url 'accounts:user_update' u.pk %}" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-pencil"></i>
+                </a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-4">Aucun utilisateur</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% include 'partials/pagination.html' %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

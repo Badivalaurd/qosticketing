@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Nouveau ticket{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'tickets:list' %}">Tickets</a></li>
+<li class="breadcrumb-item active">Nouveau ticket</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-plus-circle me-2 text-orange"></i>Créer un ticket</h1>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">Informations du ticket</div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          {% crispy form %}
+
+          <!-- Attachments -->
+          <div class="mt-3">
+            <label class="form-label fw-600">Pièces jointes</label>
+            <div class="border rounded-xl p-3 bg-light">
+              <input type="file" name="files" multiple class="form-control form-control-sm"
+                     accept=".pdf,.xls,.xlsx,.doc,.docx,.png,.jpg,.jpeg,.gif,.txt,.log,.csv">
+              <div class="small text-muted mt-1">PDF, Excel, Word, Images, Logs acceptés</div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <!-- Priority guide -->
+    <div class="card">
+      <div class="card-header">Guide des priorités</div>
+      <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+          <div class="list-group-item py-2">
+            <div class="d-flex align-items-start gap-2">
+              <span class="badge badge-priority-CRITIQUE text-white mt-1">Critique</span>
+              <div class="small">Service totalement indisponible — SLA 4h</div>
+            </div>
+          </div>
+          <div class="list-group-item py-2">
+            <div class="d-flex align-items-start gap-2">
+              <span class="badge badge-priority-HAUTE text-white mt-1">Haute</span>
+              <div class="small">Fonction majeure affectée — SLA 8h</div>
+            </div>
+          </div>
+          <div class="list-group-item py-2">
+            <div class="d-flex align-items-start gap-2">
+              <span class="badge badge-priority-MOYENNE text-white mt-1">Moyenne</span>
+              <div class="small">Contournement possible — SLA 24h</div>
+            </div>
+          </div>
+          <div class="list-group-item py-2">
+            <div class="d-flex align-items-start gap-2">
+              <span class="badge badge-priority-FAIBLE text-white mt-1">Faible</span>
+              <div class="small">Peu gênant — SLA 72h</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div class="card mt-3">
+      <div class="card-header"><i class="bi bi-lightbulb me-2 text-warning"></i>Conseils</div>
+      <div class="card-body small text-muted">
+        <ul class="mb-0 ps-3">
+          <li>Donnez un titre clair et précis</li>
+          <li>Décrivez le contexte et les étapes pour reproduire le problème</li>
+          <li>Joignez les captures d'écran ou logs d'erreur</li>
+          <li>Précisez l'impact métier</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('id_category')?.addEventListener('change', function() {
+  fetch(`{% url 'tickets:subcategories_ajax' %}?category_id=${this.value}`)
+    .then(r => r.json())
+    .then(data => {
+      const sel = document.getElementById('id_sub_category');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">---------</option>';
+      data.subcategories.forEach(s => {
+        const opt = new Option(s.name, s.id);
+        sel.add(opt);
+      });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Notifications{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Notifications</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-bell me-2 text-orange"></i>Notifications</h1>
+</div>
+<div class="col-lg-8">
+  <div class="card">
+    <div class="card-body p-0">
+      {% for notif in notifications %}
+      <div class="d-flex gap-3 px-3 py-3 border-bottom {% if not notif.is_read %}bg-orange-light{% endif %}">
+        <div class="text-{{ notif.type|lower }}" style="font-size:1.25rem;padding-top:2px">
+          <i class="bi bi-{% if notif.type == 'DANGER' %}exclamation-circle{% elif notif.type == 'SUCCESS' %}check-circle{% elif notif.type == 'WARNING' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
+        </div>
+        <div class="flex-grow-1">
+          <div class="fw-600">{{ notif.title }}</div>
+          <div class="small text-muted">{{ notif.message }}</div>
+          <div class="small text-muted mt-1">{{ notif.created_at|date:"d/m/Y H:i" }}</div>
+        </div>
+        {% if notif.url %}
+        <a href="{{ notif.url }}" class="btn btn-sm btn-outline-secondary flex-shrink-0 align-self-center">Voir</a>
+        {% endif %}
+      </div>
+      {% empty %}
+      <div class="text-center text-muted py-5">
+        <i class="bi bi-bell fs-1 d-block mb-3"></i>Aucune notification
+      </div>
+      {% endfor %}
+    </div>
+    {% include 'partials/pagination.html' %}
+  </div>
+</div>
+{% endblock %}

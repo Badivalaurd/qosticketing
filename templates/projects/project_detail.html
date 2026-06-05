@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% block title %}{{ project.name }}{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
+<li class="breadcrumb-item active">{{ project.name }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-kanban me-2 text-orange"></i>{{ project.name }}</h1>
+    <p class="text-muted small mb-0">
+      {{ project.description }}
+      {% if is_team_member and not is_it_member %}
+      <span class="badge bg-info ms-2"><i class="bi bi-people me-1"></i>Membre de l'équipe</span>
+      {% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    {% if is_it_member %}
+    <a href="{% url 'projects:kanban' project.pk %}" class="btn btn-primary">
+      <i class="bi bi-kanban me-1"></i>Kanban
+    </a>
+    <a href="{% url 'projects:gantt' project.pk %}" class="btn btn-outline-secondary">
+      <i class="bi bi-bar-chart-steps me-1"></i>Gantt
+    </a>
+    {% endif %}
+    {% if can_edit %}
+    <a href="{% url 'projects:update' project.pk %}" class="btn btn-outline-secondary">
+      <i class="bi bi-pencil me-1"></i>Modifier
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Stats (IT members seulement) -->
+{% if is_it_member %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-icon orange"><i class="bi bi-list-task"></i></div>
+      <div><div class="kpi-value">{{ stats.total }}</div><div class="kpi-label">Stories</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-icon green"><i class="bi bi-check-circle"></i></div>
+      <div><div class="kpi-value">{{ stats.done }}</div><div class="kpi-label">Terminées</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-icon blue"><i class="bi bi-arrow-repeat"></i></div>
+      <div><div class="kpi-value">{{ stats.in_progress }}</div><div class="kpi-label">En cours</div></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-icon purple"><i class="bi bi-lightning"></i></div>
+      <div><div class="kpi-value">{{ stats.points }}</div><div class="kpi-label">Story points</div></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+
+  <!-- Vue membre d'équipe (non IT) : mes tâches dans ce projet -->
+  {% if is_team_member and not is_it_member %}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-person-check text-orange fs-5"></i>
+        <strong>Mes tâches dans ce projet</strong>
+        <span class="badge bg-secondary ms-1">{{ my_tasks.count }}</span>
+      </div>
+      <div class="card-body p-0">
+        {% if my_tasks %}
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Tâche</th>
+              <th>Story</th>
+              <th>Statut</th>
+              <th>Heures estimées</th>
+              <th>Heures réelles</th>
+              <th>Échéance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in my_tasks %}
+            <tr>
+              <td class="fw-600 small">{{ task.title }}</td>
+              <td class="small text-muted">{{ task.story.title|truncatechars:40 }}</td>
+              <td>
+                <span class="badge
+                  {% if task.status == 'DONE' %}bg-success
+                  {% elif task.status == 'IN_PROGRESS' %}bg-primary
+                  {% else %}bg-secondary{% endif %}">
+                  {{ task.get_status_display }}
+                </span>
+              </td>
+              <td class="small">{{ task.estimated_hours }}h</td>
+              <td class="small">{{ task.actual_hours }}h</td>
+              <td class="small {% if task.due_date and task.due_date < today %}text-danger{% endif %}">
+                {{ task.due_date|date:"d/m/Y"|default:"—" }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+          Aucune tâche ne vous est assignée dans ce projet.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Vue complète (membres IT) -->
+  {% if is_it_member %}
+  <!-- Sprints -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-lightning me-2"></i>Sprints ({{ sprints.count }})</span>
+      </div>
+      <div class="card-body p-0">
+        {% for sprint in sprints %}
+        <a href="{% url 'projects:sprint_detail' project.pk sprint.pk %}"
+           class="list-group-item list-group-item-action px-3 py-2 border-bottom">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <strong class="small">{{ sprint.name }}</strong>
+              {% if sprint.goal %}
+              <div class="small text-muted">{{ sprint.goal|truncatechars:60 }}</div>
+              {% endif %}
+              <div class="small text-muted">
+                {{ sprint.start_date|default:"?" }} → {{ sprint.end_date|default:"?" }}
+              </div>
+            </div>
+            <span class="badge
+              {% if sprint.status == 'ACTIF' %}bg-success
+              {% elif sprint.status == 'TERMINE' %}bg-secondary
+              {% else %}bg-info text-dark{% endif %}">
+              {{ sprint.get_status_display }}
+            </span>
+          </div>
+        </a>
+        {% empty %}
+        <div class="text-center text-muted py-4 small">Aucun sprint créé</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Backlog + Équipe -->
+  <div class="col-lg-4">
+    <!-- Backlog -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-inbox me-2"></i>Backlog</span>
+        <span class="badge bg-secondary">{{ backlog.count }}</span>
+      </div>
+      <div class="card-body p-0" style="max-height:250px;overflow-y:auto">
+        {% for story in backlog %}
+        <a href="{% url 'projects:story_detail' project.pk story.pk %}"
+           class="list-group-item list-group-item-action px-3 py-2 border-bottom small">
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="text-truncate">{{ story.title|truncatechars:45 }}</span>
+            {% if story.story_points %}
+            <span class="badge bg-light text-dark ms-2">{{ story.story_points }}pts</span>
+            {% endif %}
+          </div>
+        </a>
+        {% empty %}
+        <div class="text-center text-muted py-3 small">Backlog vide</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Équipe -->
+    <div class="card">
+      <div class="card-header"><i class="bi bi-people me-2"></i>Équipe ({{ project.team.count }})</div>
+      <div class="card-body p-2">
+        <div class="d-flex align-items-center gap-2 mb-2 pb-2 border-bottom">
+          <div class="avatar-sm" style="background:#fd7e14">
+            {{ project.manager.first_name|first|default:project.manager.username|first|upper }}
+          </div>
+          <div>
+            <div class="small fw-600">{{ project.manager.get_full_name|default:project.manager.username }}</div>
+            <div class="text-muted" style="font-size:.7rem">Responsable</div>
+          </div>
+        </div>
+        {% for member in project.team.all %}
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <div class="avatar-sm">
+            {{ member.first_name|first|default:member.username|first|upper }}
+          </div>
+          <div>
+            <div class="small fw-600">{{ member.get_full_name|default:member.username }}</div>
+            <div class="text-muted" style="font-size:.7rem">{{ member.get_role_display }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const today = new Date().toISOString().split('T')[0];
+</script>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}{{ sprint.name }}{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
+<li class="breadcrumb-item"><a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a></li>
+<li class="breadcrumb-item active">{{ sprint.name }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-lightning me-2 text-orange"></i>{{ sprint.name }}</h1>
+  <span class="badge bg-success">{{ sprint.get_status_display }}</span>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr><th>Titre</th><th>Statut</th><th>Assigné</th><th>Points</th></tr>
+      </thead>
+      <tbody>
+        {% for story in stories %}
+        <tr>
+          <td><a href="{% url 'projects:story_detail' project.pk story.pk %}" class="text-decoration-none">{{ story.title }}</a></td>
+          <td><span class="badge bg-secondary">{{ story.get_status_display }}</span></td>
+          <td class="small">{{ story.assignee.get_full_name|default:"—" }}</td>
+          <td class="small">{{ story.story_points }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Aucune story</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

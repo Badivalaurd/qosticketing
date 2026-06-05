@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Reporting{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Reporting</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-bar-chart-line me-2 text-orange"></i>Reporting</h1>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <a href="{% url 'reporting:tickets' %}" class="card text-decoration-none hover-shadow">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-ticket-detailed fs-1 text-orange mb-3 d-block"></i>
+        <h5>Rapport Tickets</h5>
+        <p class="text-muted small">Analyse par catégorie, priorité, statut, application et agent</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a href="{% url 'reporting:export_excel' %}" class="card text-decoration-none hover-shadow">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-file-earmark-excel fs-1 text-success mb-3 d-block"></i>
+        <h5>Export Excel</h5>
+        <p class="text-muted small">Télécharger tous les tickets au format Excel (.xlsx)</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a href="{% url 'reporting:export_csv' %}" class="card text-decoration-none hover-shadow">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-filetype-csv fs-1 text-info mb-3 d-block"></i>
+        <h5>Export CSV</h5>
+        <p class="text-muted small">Télécharger tous les tickets au format CSV</p>
+      </div>
+    </a>
+  </div>
+</div>
+{% endblock %}

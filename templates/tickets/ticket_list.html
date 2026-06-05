@@ -1,0 +1,847 @@
+{% extends 'base.html' %}
+{% block title %}Tickets{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'dashboard:home' %}">Accueil</a></li>
+<li class="breadcrumb-item active">Tickets</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ===== JIRA-STYLE TICKET LIST ===== */
+.jira-toolbar {
+  background: white;
+  border: 1px solid #dfe1e6;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+.jira-toolbar .toolbar-search {
+  position: relative;
+  flex: 0 0 240px;
+}
+.jira-toolbar .toolbar-search input {
+  padding-left: 2rem;
+  border-radius: 4px;
+  border: 1px solid #dfe1e6;
+  background: #f4f5f7;
+  font-size: 0.8rem;
+  height: 32px;
+  width: 100%;
+  transition: all .15s;
+}
+.jira-toolbar .toolbar-search input:focus {
+  background: white;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(255,102,0,.12);
+  outline: none;
+}
+.jira-toolbar .toolbar-search .search-icon {
+  position: absolute;
+  left: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #7a869a;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
+.filter-pill {
+  position: relative;
+  display: inline-block;
+}
+.filter-pill .btn-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 32px;
+  padding: 0 0.75rem;
+  border: 1px solid #dfe1e6;
+  border-radius: 4px;
+  background: white;
+  font-size: 0.78rem;
+  color: #42526e;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  font-weight: 500;
+}
+.filter-pill .btn-pill:hover,
+.filter-pill .btn-pill.active { background: #f4f5f7; border-color: #b3bac5; }
+.filter-pill .btn-pill.has-filter { background: #fff0e6; border-color: var(--primary); color: var(--primary); }
+
+.filter-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: white;
+  border: 1px solid #dfe1e6;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 300;
+  min-width: 200px;
+  padding: 0.5rem 0;
+}
+.filter-dropdown.show { display: block; }
+.filter-dropdown .filter-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.875rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: #42526e;
+  transition: background .1s;
+}
+.filter-dropdown .filter-item:hover { background: #f4f5f7; }
+.filter-dropdown .filter-item input[type=checkbox] { margin: 0; accent-color: var(--primary); }
+.filter-dropdown .filter-section-title {
+  padding: 0.35rem 0.875rem 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #7a869a;
+}
+.filter-dropdown .filter-apply {
+  border-top: 1px solid #f4f5f7;
+  padding: 0.5rem 0.875rem 0.25rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.toolbar-divider { width: 1px; background: #dfe1e6; height: 20px; flex-shrink: 0; }
+.toolbar-spacer { flex: 1; }
+
+/* ===== JIRA TABLE ===== */
+.jira-table-wrap {
+  background: white;
+  border: 1px solid #dfe1e6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.jira-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.jira-table thead tr {
+  border-bottom: 2px solid #f4f5f7;
+}
+.jira-table thead th {
+  padding: 0.6rem 0.875rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #7a869a;
+  white-space: nowrap;
+  background: #fafbfc;
+  cursor: pointer;
+  user-select: none;
+}
+.jira-table thead th:hover { color: #42526e; }
+.jira-table thead th i { font-size: 0.65rem; opacity: .6; margin-left: 2px; }
+
+.jira-row {
+  border-bottom: 1px solid #f4f5f7;
+  transition: background .1s;
+  cursor: pointer;
+  position: relative;
+}
+.jira-row:hover { background: #f8f9ff; }
+.jira-row:last-child { border-bottom: none; }
+.jira-row.overdue { background: #fff5f5; }
+.jira-row.overdue:hover { background: #ffeaea; }
+
+.jira-row td {
+  padding: 0.65rem 0.875rem;
+  vertical-align: middle;
+  color: #172b4d;
+}
+
+/* Type + Priority icon column */
+.col-icons { width: 60px; white-space: nowrap; }
+.type-icon {
+  width: 20px; height: 20px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  flex-shrink: 0;
+  color: white;
+}
+.type-INCIDENT { background: #de350b; }
+.type-EVOLUTION { background: #0052cc; }
+.type-SUPPORT { background: #00875a; }
+.type-PONCTUEL { background: #ff991f; }
+.type-TACHE_PROJET { background: #6554c0; }
+
+.prio-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+.prio-dot.P0 { color: #de350b; }
+.prio-dot.P1 { color: #ff991f; }
+.prio-dot.P2 { color: #0065ff; }
+.prio-dot.P3 { color: #97a0af; }
+
+/* Key column */
+.col-key { width: 130px; white-space: nowrap; }
+.ticket-key {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--primary);
+  text-decoration: none;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  transition: background .1s;
+}
+.ticket-key:hover { background: var(--primary-light); color: var(--primary); }
+
+/* Summary column */
+.col-summary { }
+.issue-summary {
+  font-weight: 500;
+  color: #172b4d;
+  text-decoration: none;
+  display: block;
+  line-height: 1.3;
+}
+.issue-summary:hover { color: var(--primary); text-decoration: underline; }
+.issue-meta {
+  font-size: 0.72rem;
+  color: #7a869a;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Status column */
+.col-status { width: 140px; }
+.jira-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.jira-status.st-NOUVEAU     { background: #f4f5f7; color: #42526e; }
+.jira-status.st-AFFECTE     { background: #e3fcef; color: #006644; }
+.jira-status.st-EN_COURS    { background: #deebff; color: #0747a6; }
+.jira-status.st-ATTENTE_INFO       { background: #fff8e1; color: #a85400; }
+.jira-status.st-ATTENTE_PRESTATAIRE{ background: #eae6ff; color: #403294; }
+.jira-status.st-RESOLU      { background: #e3fcef; color: #006644; }
+.jira-status.st-CLOTURE     { background: #dfe1e6; color: #172b4d; }
+.jira-status.st-REJETE      { background: #ffebe6; color: #bf2600; }
+.jira-status.st-ANNULE      { background: #f4f5f7; color: #97a0af; }
+
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.st-NOUVEAU .status-dot      { background: #97a0af; }
+.st-AFFECTE .status-dot      { background: #00875a; }
+.st-EN_COURS .status-dot     { background: #0065ff; }
+.st-ATTENTE_INFO .status-dot { background: #ff991f; }
+.st-ATTENTE_PRESTATAIRE .status-dot { background: #6554c0; }
+.st-RESOLU .status-dot       { background: #36b37e; }
+.st-CLOTURE .status-dot      { background: #6b778c; }
+.st-REJETE .status-dot       { background: #de350b; }
+.st-ANNULE .status-dot       { background: #b3bac5; }
+
+/* Assignee column */
+.col-assignee { width: 140px; }
+.assignee-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+.user-chip {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.user-chip img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+.assignee-name { font-size: 0.78rem; color: #42526e; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
+
+/* SLA column */
+.col-sla { width: 100px; }
+.sla-wrap { display: flex; flex-direction: column; gap: 3px; }
+.sla-mini-bar { height: 3px; border-radius: 2px; background: #f4f5f7; overflow: hidden; }
+.sla-mini-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+.sla-ok   .sla-mini-fill { background: #36b37e; }
+.sla-warn .sla-mini-fill { background: #ff991f; }
+.sla-crit .sla-mini-fill { background: #de350b; }
+.sla-text { font-size: 0.68rem; font-weight: 600; }
+.sla-ok   .sla-text { color: #006644; }
+.sla-warn .sla-text { color: #a85400; }
+.sla-crit .sla-text { color: #bf2600; }
+.sla-na { color: #b3bac5; font-size: 0.72rem; }
+
+/* Date column */
+.col-date { width: 95px; white-space: nowrap; }
+.date-val { color: #7a869a; font-size: 0.75rem; }
+.date-val.recent { color: #42526e; font-weight: 500; }
+
+/* Row actions (appear on hover) */
+.row-actions {
+  display: none;
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: white;
+  border: 1px solid #dfe1e6;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  padding: 0.15rem 0.3rem;
+  gap: 0.1rem;
+  z-index: 10;
+  align-items: center;
+}
+.jira-row:hover .row-actions { display: flex; }
+.col-date { position: relative; }
+.row-action-btn {
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #42526e;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background .1s;
+}
+.row-action-btn:hover { background: #f4f5f7; color: #172b4d; }
+
+/* Empty state */
+.jira-empty {
+  padding: 4rem 2rem;
+  text-align: center;
+  color: #7a869a;
+}
+.jira-empty .empty-icon {
+  font-size: 3rem;
+  color: #dfe1e6;
+  margin-bottom: 1rem;
+  display: block;
+}
+.jira-empty .empty-title { font-size: 1rem; font-weight: 600; color: #42526e; margin-bottom: 0.4rem; }
+.jira-empty .empty-sub { font-size: 0.82rem; }
+
+/* Count badge */
+.result-count {
+  font-size: 0.78rem;
+  color: #7a869a;
+  font-weight: 500;
+}
+.result-count strong { color: #42526e; }
+
+/* Pagination JIRA style */
+.jira-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #f4f5f7;
+}
+.jira-pagination .page-btn {
+  width: 30px; height: 30px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #42526e;
+  font-size: 0.78rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .1s;
+}
+.jira-pagination .page-btn:hover { background: #f4f5f7; border-color: #dfe1e6; }
+.jira-pagination .page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+.jira-pagination .page-btn.disabled { opacity: 0.4; pointer-events: none; }
+
+/* Active filter tags */
+.active-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #fff0e6;
+  color: var(--primary);
+  border: 1px solid #ffd6b3;
+  border-radius: 12px;
+  padding: 0.1rem 0.5rem 0.1rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.filter-tag .remove-tag {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: rgba(255,102,0,.15);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 0.6rem;
+  text-decoration: none;
+  color: var(--primary);
+  transition: background .1s;
+}
+.filter-tag .remove-tag:hover { background: rgba(255,102,0,.3); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="mb-0" style="font-size:1.35rem;font-weight:700;">
+      <i class="bi bi-ticket-detailed me-2 text-orange"></i>Tickets
+    </h1>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'reporting:export_csv' %}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+      <i class="bi bi-download" style="font-size:.8rem"></i><span class="d-none d-sm-inline">CSV</span>
+    </a>
+    <a href="{% url 'reporting:export_excel' %}" class="btn btn-sm btn-outline-success d-flex align-items-center gap-1">
+      <i class="bi bi-file-earmark-excel" style="font-size:.8rem"></i><span class="d-none d-sm-inline">Excel</span>
+    </a>
+    <a href="{% url 'tickets:create' %}" class="btn btn-primary btn-sm d-flex align-items-center gap-1">
+      <i class="bi bi-plus-lg"></i>Nouveau ticket
+    </a>
+  </div>
+</div>
+
+<form method="get" id="filterForm">
+
+<!-- Toolbar -->
+<div class="jira-toolbar mb-2">
+
+  <!-- Search -->
+  <div class="toolbar-search">
+    <i class="bi bi-search search-icon"></i>
+    <input type="text" name="search" id="searchInput"
+           value="{{ filter_form.search.value|default:'' }}"
+           placeholder="Rechercher un ticket…"
+           autocomplete="off">
+  </div>
+
+  <div class="toolbar-divider"></div>
+
+  <!-- Status filter -->
+  <div class="filter-pill" id="pillStatus">
+    <button type="button" class="btn-pill {% if filter_form.data.status %}has-filter{% endif %}" onclick="togglePill('pillStatus')">
+      Statut
+      {% if filter_form.data.status %}<span class="badge rounded-pill" style="background:var(--primary);font-size:.65rem;padding:.15rem .4rem;">{{ filter_form.data.getlist.status|length }}</span>{% endif %}
+      <i class="bi bi-chevron-down" style="font-size:.65rem"></i>
+    </button>
+    <div class="filter-dropdown" id="dropStatus">
+      {% for val, label in filter_form.fields.status.choices %}
+      <label class="filter-item">
+        <input type="checkbox" name="status" value="{{ val }}"
+               {% if val in filter_form.data.getlist|default:'' %}checked{% endif %}>
+        <span class="jira-status st-{{ val }}" style="font-size:.7rem;padding:.1rem .4rem;">
+          <span class="status-dot"></span>{{ label }}
+        </span>
+      </label>
+      {% endfor %}
+      <div class="filter-apply">
+        <button type="submit" class="btn btn-primary btn-sm" style="font-size:.75rem;height:26px;padding:0 .75rem;">Appliquer</button>
+        <button type="button" class="btn btn-link btn-sm text-muted p-0" style="font-size:.75rem;" onclick="clearGroup('status')">Effacer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Priority filter -->
+  <div class="filter-pill" id="pillPriority">
+    <button type="button" class="btn-pill {% if filter_form.data.priority %}has-filter{% endif %}" onclick="togglePill('pillPriority')">
+      Priorité
+      <i class="bi bi-chevron-down" style="font-size:.65rem"></i>
+    </button>
+    <div class="filter-dropdown" id="dropPriority">
+      {% for val, label in filter_form.fields.priority.choices %}
+      <label class="filter-item">
+        <input type="checkbox" name="priority" value="{{ val }}"
+               {% if val in filter_form.data.getlist|default:'' %}checked{% endif %}>
+        <span class="prio-dot {{ val }}">
+          {% if val == 'P0' %}<i class="bi bi-arrow-up-circle-fill"></i>
+          {% elif val == 'P1' %}<i class="bi bi-arrow-up-circle"></i>
+          {% elif val == 'P2' %}<i class="bi bi-dash-circle"></i>
+          {% else %}<i class="bi bi-arrow-down-circle"></i>{% endif %}
+        </span>
+        {{ label }}
+      </label>
+      {% endfor %}
+      <div class="filter-apply">
+        <button type="submit" class="btn btn-primary btn-sm" style="font-size:.75rem;height:26px;padding:0 .75rem;">Appliquer</button>
+        <button type="button" class="btn btn-link btn-sm text-muted p-0" style="font-size:.75rem;" onclick="clearGroup('priority')">Effacer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category filter -->
+  <div class="filter-pill" id="pillCategory">
+    <button type="button" class="btn-pill {% if filter_form.data.category %}has-filter{% endif %}" onclick="togglePill('pillCategory')">
+      Catégorie
+      <i class="bi bi-chevron-down" style="font-size:.65rem"></i>
+    </button>
+    <div class="filter-dropdown" id="dropCategory">
+      {% for cat in filter_form.fields.category.queryset %}
+      <label class="filter-item">
+        <input type="radio" name="category" value="{{ cat.pk }}"
+               {% if filter_form.data.category == cat.pk|stringformat:"s" %}checked{% endif %}>
+        {{ cat.name }}
+      </label>
+      {% endfor %}
+      <div class="filter-apply">
+        <button type="submit" class="btn btn-primary btn-sm" style="font-size:.75rem;height:26px;padding:0 .75rem;">Appliquer</button>
+        <button type="button" class="btn btn-link btn-sm text-muted p-0" style="font-size:.75rem;" onclick="clearGroup('category')">Effacer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Date filter -->
+  <div class="filter-pill" id="pillDate">
+    <button type="button" class="btn-pill {% if filter_form.data.date_from or filter_form.data.date_to %}has-filter{% endif %}" onclick="togglePill('pillDate')">
+      Période
+      <i class="bi bi-chevron-down" style="font-size:.65rem"></i>
+    </button>
+    <div class="filter-dropdown" id="dropDate" style="min-width:240px;">
+      <div style="padding:.5rem .875rem;">
+        <label class="form-label" style="font-size:.72rem;color:#7a869a;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Du</label>
+        <input type="date" name="date_from" value="{{ filter_form.data.date_from|default:'' }}"
+               class="form-control form-control-sm mb-2">
+        <label class="form-label" style="font-size:.72rem;color:#7a869a;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Au</label>
+        <input type="date" name="date_to" value="{{ filter_form.data.date_to|default:'' }}"
+               class="form-control form-control-sm">
+      </div>
+      <div class="filter-apply">
+        <button type="submit" class="btn btn-primary btn-sm" style="font-size:.75rem;height:26px;padding:0 .75rem;">Appliquer</button>
+        <button type="button" class="btn btn-link btn-sm text-muted p-0" style="font-size:.75rem;" onclick="clearGroup('date')">Effacer</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar-divider"></div>
+
+  <!-- My tickets -->
+  <label class="btn-pill d-flex align-items-center gap-1" style="cursor:pointer;margin:0;height:32px;padding:0 .75rem;border:1px solid #dfe1e6;border-radius:4px;font-size:.78rem;color:#42526e;{% if filter_form.data.assigned_to_me %}background:#fff0e6;border-color:var(--primary);color:var(--primary);{% endif %}">
+    <input type="checkbox" name="assigned_to_me" value="1" style="display:none"
+           {% if filter_form.data.assigned_to_me %}checked{% endif %}
+           onchange="this.form.submit()">
+    <i class="bi bi-person-check" style="font-size:.85rem"></i>
+    <span class="d-none d-md-inline">Mes tickets</span>
+  </label>
+
+  <!-- SLA exceeded -->
+  <label class="btn-pill d-flex align-items-center gap-1" style="cursor:pointer;margin:0;height:32px;padding:0 .75rem;border:1px solid #dfe1e6;border-radius:4px;font-size:.78rem;color:#42526e;{% if filter_form.data.sla_exceeded %}background:#ffebe6;border-color:#de350b;color:#bf2600;{% endif %}">
+    <input type="checkbox" name="sla_exceeded" value="1" style="display:none"
+           {% if filter_form.data.sla_exceeded %}checked{% endif %}
+           onchange="this.form.submit()">
+    <i class="bi bi-clock-history" style="font-size:.85rem"></i>
+    <span class="d-none d-md-inline">SLA dépassé</span>
+  </label>
+
+  <div class="toolbar-spacer"></div>
+
+  <!-- Result count -->
+  <span class="result-count">
+    <strong>{{ total_count }}</strong> ticket{{ total_count|pluralize }}
+  </span>
+
+  {% if filter_form.data %}
+  <a href="{% url 'tickets:list' %}" class="btn btn-sm text-muted" style="font-size:.75rem;padding:.2rem .5rem;"
+     title="Réinitialiser les filtres">
+    <i class="bi bi-x-circle me-1"></i>Réinit.
+  </a>
+  {% endif %}
+</div>
+
+<!-- Table -->
+<div class="jira-table-wrap">
+  <table class="jira-table">
+    <thead>
+      <tr>
+        <th class="col-icons"></th>
+        <th class="col-key">Numéro</th>
+        <th class="col-summary">Résumé</th>
+        <th class="col-status">Statut</th>
+        <th class="col-assignee">Responsable</th>
+        <th class="col-sla">SLA</th>
+        <th class="col-date">Créé le <i class="bi bi-arrow-down"></i></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ticket in tickets %}
+      <tr class="jira-row {% if ticket.is_overdue %}overdue{% endif %}"
+          onclick="window.location='{% url 'tickets:detail' ticket.number %}'">
+
+        <!-- Icons: type + priority -->
+        <td class="col-icons" onclick="event.stopPropagation()">
+          <div class="d-flex align-items-center gap-1">
+            <span class="type-icon type-{{ ticket.category.type }}"
+                  title="{{ ticket.category.name }}">
+              {% if ticket.category.type == 'INCIDENT' %}<i class="bi bi-bug-fill"></i>
+              {% elif ticket.category.type == 'EVOLUTION' %}<i class="bi bi-lightning-fill"></i>
+              {% elif ticket.category.type == 'SUPPORT' %}<i class="bi bi-headset"></i>
+              {% elif ticket.category.type == 'PONCTUEL' %}<i class="bi bi-star-fill"></i>
+              {% else %}<i class="bi bi-kanban-fill"></i>{% endif %}
+            </span>
+            <span class="prio-dot {{ ticket.priority }}" title="{{ ticket.get_priority_display }}">
+              {% if ticket.priority == 'P0' %}<i class="bi bi-arrow-up-circle-fill"></i>
+              {% elif ticket.priority == 'P1' %}<i class="bi bi-arrow-up-circle"></i>
+              {% elif ticket.priority == 'P2' %}<i class="bi bi-dash-circle"></i>
+              {% else %}<i class="bi bi-arrow-down-circle"></i>{% endif %}
+            </span>
+          </div>
+        </td>
+
+        <!-- Key -->
+        <td class="col-key" onclick="event.stopPropagation()">
+          <a href="{% url 'tickets:detail' ticket.number %}" class="ticket-key">
+            {{ ticket.number }}
+          </a>
+        </td>
+
+        <!-- Summary -->
+        <td class="col-summary">
+          <a href="{% url 'tickets:detail' ticket.number %}" class="issue-summary" onclick="event.stopPropagation()">
+            {{ ticket.title|truncatechars:80 }}
+          </a>
+          <div class="issue-meta">
+            <i class="bi bi-person" style="font-size:.65rem"></i>
+            {{ ticket.created_by.get_full_name|default:ticket.created_by.username }}
+            {% if ticket.department %}
+            <span>·</span>
+            <i class="bi bi-building" style="font-size:.65rem"></i>
+            {{ ticket.department.name }}
+            {% endif %}
+          </div>
+        </td>
+
+        <!-- Status -->
+        <td class="col-status">
+          <span class="jira-status st-{{ ticket.status }}">
+            <span class="status-dot"></span>
+            {{ ticket.get_status_display }}
+          </span>
+        </td>
+
+        <!-- Assignee -->
+        <td class="col-assignee">
+          {% if ticket.assigned_to %}
+          <div class="assignee-wrap">
+            {% if ticket.assigned_to.avatar %}
+              <span class="user-chip"><img src="{{ ticket.assigned_to.avatar.url }}" alt=""></span>
+            {% else %}
+              <span class="user-chip">{{ ticket.assigned_to.first_name|first|default:ticket.assigned_to.username|first|upper }}</span>
+            {% endif %}
+            <span class="assignee-name" title="{{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}">
+              {{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}
+            </span>
+          </div>
+          {% else %}
+          <span style="color:#b3bac5;font-size:.75rem;font-style:italic;">Non affecté</span>
+          {% endif %}
+        </td>
+
+        <!-- SLA -->
+        <td class="col-sla">
+          {% if ticket.status == 'RESOLU' or ticket.status == 'CLOTURE' or ticket.status == 'REJETE' or ticket.status == 'ANNULE' %}
+            {% if ticket.resolved_out_of_sla %}
+              <span class="sla-text" style="color:#bf2600;font-size:.7rem;">
+                <i class="bi bi-x-circle-fill"></i> Hors délai
+              </span>
+            {% else %}
+              <span class="sla-text" style="color:#006644;font-size:.7rem;">
+                <i class="bi bi-check-circle-fill"></i> OK
+              </span>
+            {% endif %}
+          {% elif ticket.sla_resolution_deadline %}
+            {% with pct=ticket.resolution_sla_percent %}
+            {% if pct is not None %}
+              <div class="sla-wrap {% if pct >= 100 %}sla-crit{% elif pct >= 75 %}sla-warn{% else %}sla-ok{% endif %}">
+                <div class="sla-mini-bar">
+                  <div class="sla-mini-fill" style="width:{% if pct > 100 %}100{% else %}{{ pct }}{% endif %}%"></div>
+                </div>
+                <span class="sla-text">
+                  {% if pct >= 100 %}
+                    <i class="bi bi-exclamation-triangle-fill"></i> Dépassé
+                  {% elif pct >= 75 %}
+                    <i class="bi bi-clock-history"></i> {{ pct }}%
+                  {% else %}
+                    <i class="bi bi-clock"></i> {{ pct }}%
+                  {% endif %}
+                </span>
+              </div>
+            {% else %}
+              <span class="sla-na">—</span>
+            {% endif %}
+            {% endwith %}
+          {% else %}
+            <span class="sla-na">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Date + hover actions -->
+        <td class="col-date" style="position:relative;">
+          <span class="date-val">{{ ticket.created_at|date:"d/m/Y" }}</span>
+          <div class="row-actions" onclick="event.stopPropagation()">
+            <a href="{% url 'tickets:detail' ticket.number %}" class="row-action-btn" title="Voir le ticket">
+              <i class="bi bi-eye"></i>
+            </a>
+            {% if request.user.role == 'ADMIN' or request.user.role == 'AGENT' or request.user.role == 'MANAGER' %}
+            <a href="{% url 'tickets:edit' ticket.number %}" class="row-action-btn" title="Modifier">
+              <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7">
+          <div class="jira-empty">
+            <i class="bi bi-inbox empty-icon"></i>
+            <div class="empty-title">Aucun ticket trouvé</div>
+            <div class="empty-sub">Essayez de modifier vos filtres ou <a href="{% url 'tickets:create' %}">créez un nouveau ticket</a>.</div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Pagination -->
+  {% if is_paginated %}
+  <div class="jira-pagination">
+    {% if page_obj.has_previous %}
+    <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}"
+       class="page-btn" title="Précédent"><i class="bi bi-chevron-left" style="font-size:.7rem"></i></a>
+    {% else %}
+    <span class="page-btn disabled"><i class="bi bi-chevron-left" style="font-size:.7rem"></i></span>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+      {% if page_obj.number == num %}
+        <span class="page-btn active">{{ num }}</span>
+      {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ num }}"
+           class="page-btn">{{ num }}</a>
+      {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+    <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}"
+       class="page-btn" title="Suivant"><i class="bi bi-chevron-right" style="font-size:.7rem"></i></a>
+    {% else %}
+    <span class="page-btn disabled"><i class="bi bi-chevron-right" style="font-size:.7rem"></i></span>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Filter pill toggles ──────────────────────────────────────────
+function togglePill(pillId) {
+  const allDrops = document.querySelectorAll('.filter-dropdown');
+  allDrops.forEach(d => {
+    if (d.id !== 'drop' + pillId.replace('pill','')) d.classList.remove('show');
+  });
+  const drop = document.getElementById('drop' + pillId.replace('pill', ''));
+  if (drop) drop.classList.toggle('show');
+}
+
+// Close on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.filter-pill')) {
+    document.querySelectorAll('.filter-dropdown').forEach(d => d.classList.remove('show'));
+  }
+});
+
+// ── Clear a filter group ─────────────────────────────────────────
+function clearGroup(group) {
+  const form = document.getElementById('filterForm');
+  if (group === 'status') {
+    form.querySelectorAll('input[name=status]').forEach(i => i.checked = false);
+  } else if (group === 'priority') {
+    form.querySelectorAll('input[name=priority]').forEach(i => i.checked = false);
+  } else if (group === 'category') {
+    form.querySelectorAll('input[name=category]').forEach(i => i.checked = false);
+  } else if (group === 'date') {
+    const f = form.querySelector('input[name=date_from]');
+    const t = form.querySelector('input[name=date_to]');
+    if (f) f.value = '';
+    if (t) t.value = '';
+  }
+  form.submit();
+}
+
+// ── Search: auto-submit on Enter ─────────────────────────────────
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('filterForm').submit(); }
+});
+
+// ── Live search debounce ─────────────────────────────────────────
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  if (e.target.value.length === 0 || e.target.value.length >= 3) {
+    searchTimer = setTimeout(() => document.getElementById('filterForm').submit(), 500);
+  }
+});
+
+// ── Pre-check filters from URL params ────────────────────────────
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  params.getAll('status').forEach(v => {
+    const el = document.querySelector(`input[name=status][value="${v}"]`);
+    if (el) el.checked = true;
+  });
+  params.getAll('priority').forEach(v => {
+    const el = document.querySelector(`input[name=priority][value="${v}"]`);
+    if (el) el.checked = true;
+  });
+  const cat = params.get('category');
+  if (cat) {
+    const el = document.querySelector(`input[name=category][value="${cat}"]`);
+    if (el) el.checked = true;
+  }
+})();
+</script>
+{% endblock %}

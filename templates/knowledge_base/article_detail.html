@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}{{ object.title }}{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'knowledge_base:list' %}">Base de connaissance</a></li>
+<li class="breadcrumb-item active">{{ object.title|truncatechars:40 }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3 justify-content-center">
+  <div class="col-lg-9">
+    <div class="card">
+      <div class="card-body p-4">
+        <div class="d-flex gap-2 mb-3">
+          <span class="badge bg-light text-dark">{{ object.get_type_display }}</span>
+          {% if object.category %}<span class="badge bg-primary bg-opacity-10 text-primary">{{ object.category.name }}</span>{% endif %}
+          <span class="ms-auto small text-muted"><i class="bi bi-eye me-1"></i>{{ object.views }} vues</span>
+        </div>
+        <h1 class="h3 mb-3">{{ object.title }}</h1>
+        {% if object.summary %}
+        <p class="lead text-muted border-start border-4 border-orange ps-3 mb-4">{{ object.summary }}</p>
+        {% endif %}
+        <hr>
+        <div class="article-content" style="line-height:1.8">{{ object.content|linebreaks }}</div>
+        {% if object.get_tags_list %}
+        <hr>
+        <div class="d-flex flex-wrap gap-2">
+          {% for tag in object.get_tags_list %}
+          <span class="badge bg-light text-muted">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top small text-muted">
+          <span>Par {{ object.author.get_full_name|default:object.author.username|default:"?" }}</span>
+          <span>Mis à jour : {{ object.updated_at|date:"d/m/Y" }}</span>
+        </div>
+      </div>
+    </div>
+
+    {% if object.related_tickets.exists %}
+    <div class="card mt-3">
+      <div class="card-header">Tickets liés</div>
+      <div class="card-body p-0">
+        {% for t in object.related_tickets.all %}
+        <a href="{% url 'tickets:detail' t.number %}" class="list-group-item list-group-item-action px-3 py-2 border-bottom small">
+          <span class="ticket-number text-orange me-2">{{ t.number }}</span>{{ t.title }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-3">
+    {% if request.user.role in 'ADMIN,MANAGER,AGENT' or request.user.is_admin %}
+    <a href="{% url 'knowledge_base:update' object.pk %}" class="btn btn-outline-secondary btn-sm w-100 mb-3">
+      <i class="bi bi-pencil me-1"></i>Modifier
+    </a>
+    {% endif %}
+    <a href="{% url 'knowledge_base:list' %}" class="btn btn-outline-secondary btn-sm w-100">
+      <i class="bi bi-arrow-left me-1"></i>Retour
+    </a>
+  </div>
+</div>
+{% endblock %}

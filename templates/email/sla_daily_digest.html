@@ -1,0 +1,62 @@
+{% extends 'email/base_email.html' %}
+
+{% block header_label %}Rapport Quotidien{% endblock %}
+
+{% block event_banner %}
+<div style="background:#ffebe6;border-bottom:1px solid #ffbdad;padding:12px 28px;display:flex;align-items:center;gap:10px;">
+  <span style="width:32px;height:32px;background:#de350b;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;line-height:32px;text-align:center;">📊</span>
+  <div>
+    <div style="font-size:13px;font-weight:700;color:#bf2600;">Récapitulatif SLA — {{ today|date:"d/m/Y" }}</div>
+    <div style="font-size:11px;color:#97a0af;margin-top:1px;">{{ count }} ticket{% if count > 1 %}s{% endif %} en dépassement de délai</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="greeting">Bonjour <strong>{{ user.get_full_name|default:user.username }}</strong>,</p>
+<p style="font-size:14px;color:#42526e;margin:0 0 20px;">
+  Voici votre rapport quotidien SLA du <strong>{{ today|date:"d/m/Y" }}</strong>.
+  Vous avez <strong style="color:#bf2600;">{{ count }} ticket{% if count > 1 %}s{% endif %}</strong>
+  en dépassement de délai nécessitant une action.
+</p>
+
+{% for ticket in tickets %}
+<div style="border:1px solid #f0f2f5;border-left:4px solid {% if ticket.priority == 'P0' %}#de350b{% elif ticket.priority == 'P1' %}#ff991f{% elif ticket.priority == 'P2' %}#0065ff{% else %}#97a0af{% endif %};border-radius:6px;padding:14px 16px;margin-bottom:10px;background:white;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td valign="top" style="padding-right:12px;">
+        <span style="font-family:'Courier New',monospace;font-size:11px;font-weight:700;color:#FF6600;background:#fff5ed;padding:2px 8px;border-radius:10px;">{{ ticket.number }}</span>
+        <div style="font-size:13px;font-weight:600;color:#1a1d2e;margin:6px 0 4px;line-height:1.4;">{{ ticket.title|truncatechars:65 }}</div>
+        <div style="font-size:11px;color:#97a0af;">
+          {{ ticket.category.name }}&nbsp;·&nbsp;{{ ticket.get_status_display }}
+          &nbsp;·&nbsp; Échéance : <strong style="color:#bf2600;">{{ ticket.sla_resolution_deadline|date:"d/m H:i" }}</strong>
+        </div>
+      </td>
+      <td valign="middle" align="right" style="white-space:nowrap;">
+        <span class="prio prio-{{ ticket.priority|slice:':2' }}">{{ ticket.priority }}</span>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding-top:10px;">
+        <a href="{{ site_url }}/tickets/{{ ticket.number }}/"
+           style="display:inline-block;background:#FF6600;color:#fff;text-decoration:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;">
+          Traiter ce ticket →
+        </a>
+      </td>
+    </tr>
+  </table>
+</div>
+{% endfor %}
+
+<hr class="divider">
+
+<div class="cta">
+  <a href="{{ site_url }}/tickets/?assigned_to_me=1&sla_exceeded=1" class="btn">
+    &#128202;&nbsp; Voir tous mes tickets en retard
+  </a>
+</div>
+
+<p style="font-size:11px;color:#97a0af;text-align:center;margin-top:16px;">
+  Ce rapport est généré automatiquement chaque matin à 8h00 par le système QoS Ticketing OMCM.
+</p>
+{% endblock %}

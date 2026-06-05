@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ story.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ story.title }}</h1>
+  <span class="badge bg-secondary">{{ story.get_status_display }}</span>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header">Description</div>
+      <div class="card-body"><p style="white-space:pre-wrap">{{ story.description|default:"—" }}</p></div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header">Critères d'acceptation</div>
+      <div class="card-body"><p style="white-space:pre-wrap">{{ story.acceptance_criteria|default:"—" }}</p></div>
+    </div>
+    <div class="card">
+      <div class="card-header">Tâches</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Titre</th><th>Statut</th><th>Assigné</th><th>Heures</th></tr></thead>
+          <tbody>
+            {% for task in tasks %}
+            <tr>
+              <td>{{ task.title }}</td>
+              <td><span class="badge bg-secondary">{{ task.get_status_display }}</span></td>
+              <td class="small">{{ task.assignee.get_full_name|default:"—" }}</td>
+              <td class="small">{{ task.estimated_hours }}h</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-3">Aucune tâche</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="p-3 border-top">
+          <strong class="small">Ajouter une tâche</strong>
+          <form method="post" class="mt-2">{% csrf_token %}{% crispy form %}</form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Informations</div>
+      <div class="card-body">
+        <table class="table table-sm table-borderless small">
+          <tr><td class="text-muted">Projet</td><td>{{ project.name }}</td></tr>
+          <tr><td class="text-muted">Epic</td><td>{{ story.epic.name|default:"—" }}</td></tr>
+          <tr><td class="text-muted">Sprint</td><td>{{ story.sprint.name|default:"Backlog" }}</td></tr>
+          <tr><td class="text-muted">Assigné</td><td>{{ story.assignee.get_full_name|default:"—" }}</td></tr>
+          <tr><td class="text-muted">Points</td><td>{{ story.story_points }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

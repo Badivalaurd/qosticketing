@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}Gantt - {{ project.name }}{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
+<li class="breadcrumb-item"><a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a></li>
+<li class="breadcrumb-item active">Gantt</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-bar-chart-steps me-2 text-orange"></i>{{ project.name }} — Gantt</h1>
+  <a href="{% url 'projects:kanban' project.pk %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-kanban me-1"></i>Kanban
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    {% if sprints %}
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm" id="ganttTable">
+        <thead>
+          <tr class="table-dark">
+            <th style="min-width:200px">Sprint / Story</th>
+            {% for sprint in sprints %}
+            <th class="text-center small" style="min-width:100px">
+              {{ sprint.name }}<br>
+              <span class="text-muted" style="font-size:0.65rem">{{ sprint.start_date|default:"?" }} → {{ sprint.end_date|default:"?" }}</span>
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for sprint in sprints %}
+          <tr class="table-light">
+            <td colspan="{{ sprints|length|add:1 }}">
+              <strong><i class="bi bi-lightning text-warning"></i> {{ sprint.name }}</strong>
+              <span class="badge {% if sprint.status == 'ACTIF' %}bg-success{% else %}bg-secondary{% endif %} ms-2">{{ sprint.get_status_display }}</span>
+            </td>
+          </tr>
+          {% for story in sprint.user_stories.all %}
+          <tr>
+            <td class="ps-4 small">
+              <a href="{% url 'projects:story_detail' project.pk story.pk %}" class="text-decoration-none">
+                {{ story.title|truncatechars:45 }}
+              </a>
+            </td>
+            {% for s in sprints %}
+            <td class="text-center">
+              {% if s.pk == sprint.pk %}
+              <span class="badge {% if story.status == 'DONE' %}bg-success{% elif story.status == 'IN_PROGRESS' %}bg-primary{% elif story.status == 'IN_TEST' %}bg-purple{% else %}bg-secondary{% endif %} w-100">
+                {{ story.get_status_display }}
+              </span>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-bar-chart-steps fs-1 d-block mb-3"></i>
+      Aucun sprint défini. Créez des sprints pour visualiser le Gantt.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

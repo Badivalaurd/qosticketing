@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}Configuration SLA{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'dashboard:home' %}">Accueil</a></li>
+<li class="breadcrumb-item active">Configuration SLA</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-sliders me-2 text-orange"></i>Configuration SLA</h1>
+    <p class="text-muted small mb-0">Délais de prise en charge et de traitement par priorité — modifiables par l'administrateur.</p>
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="row g-3 mb-4">
+    {% for item in sla_items %}
+    <div class="col-md-6 col-xl-3">
+      <div class="card h-100 border-top border-4 border-priority-{{ item.priority }}">
+        <div class="card-header d-flex align-items-center gap-2 bg-white">
+          <span class="badge badge-priority-{{ item.priority }} text-white fs-6">{{ item.priority }}</span>
+          <strong class="small">{{ item.label }}</strong>
+        </div>
+        <div class="card-body">
+
+          <div class="mb-3">
+            <label class="form-label small fw-600 text-muted">
+              <i class="bi bi-hand-index me-1"></i>Prise en charge (min)
+            </label>
+            <input type="number" name="{{ item.priority }}-response_time_minutes"
+                   value="{{ item.config.response_time_minutes }}"
+                   class="form-control form-control-sm" min="1" required>
+            <div class="small text-muted mt-1">
+              Actuellement : <strong>{{ item.config.response_time_minutes }} min</strong>
+              {% if item.config.response_time_minutes >= 60 %}
+                ({{ item.config.response_time_minutes|divisibleby:60|yesno:"," }}{% widthratio item.config.response_time_minutes 60 1 %}h)
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="mb-1">
+            <label class="form-label small fw-600 text-muted">
+              <i class="bi bi-wrench me-1"></i>Traitement (min)
+            </label>
+            <input type="number" name="{{ item.priority }}-resolution_time_minutes"
+                   value="{{ item.config.resolution_time_minutes }}"
+                   class="form-control form-control-sm" min="1" required>
+            <div class="small text-muted mt-1">
+              Actuellement : <strong>{{ item.config.resolution_time_minutes }} min</strong>
+              {% if item.config.resolution_time_minutes >= 60 %}
+                ({% widthratio item.config.resolution_time_minutes 60 1 %}h)
+              {% endif %}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Tableau de référence -->
+  <div class="card mb-4">
+    <div class="card-header"><i class="bi bi-table me-2"></i>Valeurs de référence recommandées</div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Priorité</th>
+            <th>Prise en charge</th>
+            <th>Traitement</th>
+            <th>Cas d'usage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-priority-P0 text-white">P0 — Critique</span></td>
+            <td>10 min</td><td>2h (120 min)</td>
+            <td class="small text-muted">Service totalement indisponible</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-priority-P1 text-white">P1 — Haute</span></td>
+            <td>30 min</td><td>4h (240 min)</td>
+            <td class="small text-muted">Fonction majeure affectée</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-priority-P2 text-white">P2 — Moyenne</span></td>
+            <td>2h (120 min)</td><td>24h (1440 min)</td>
+            <td class="small text-muted">Contournement possible</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-priority-P3 text-white">P3 — Faible</span></td>
+            <td>4h (240 min)</td><td>48h (2880 min)</td>
+            <td class="small text-muted">Impact limité</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-save me-2"></i>Enregistrer la configuration
+    </button>
+    <a href="{% url 'dashboard:home' %}" class="btn btn-outline-secondary">Annuler</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.border-priority-P0 { border-top-color: #dc3545 !important; }
+.border-priority-P1 { border-top-color: #fd7e14 !important; }
+.border-priority-P2 { border-top-color: #0dcaf0 !important; }
+.border-priority-P3 { border-top-color: #6c757d !important; }
+</style>
+{% endblock %}

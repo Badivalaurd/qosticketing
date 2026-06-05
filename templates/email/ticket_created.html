@@ -1,0 +1,51 @@
+{% extends 'email/base_email.html' %}
+
+{% block header_label %}Nouveau Ticket{% endblock %}
+
+{% block event_banner %}
+<div style="background:#fff5ed;border-bottom:1px solid #fde0c8;padding:12px 28px;display:flex;align-items:center;gap:10px;">
+  <span style="width:32px;height:32px;background:#FF6600;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8l8 5 8-5v10zm-8-7L4 6h16l-8 5z"/></svg>
+  </span>
+  <div>
+    <div style="font-size:13px;font-weight:700;color:#a85400;">Nouveau ticket soumis</div>
+    <div style="font-size:11px;color:#97a0af;margin-top:1px;">Une demande nécessite votre attention</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="greeting">Bonjour <strong>{{ recipient_name }}</strong>,</p>
+<p style="font-size:14px;color:#42526e;margin:0 0 4px;">Un nouveau ticket a été soumis et vous est destiné.</p>
+
+<div class="ticket-box">
+  <div style="padding:14px 16px;">
+    <span class="ticket-num">{{ ticket_number }}</span>
+    <div class="ticket-title">{{ ticket_title }}</div>
+  </div>
+  <div class="ticket-meta">
+    <div class="meta-col">
+      <div class="meta-label">Catégorie</div>
+      <div class="meta-value">{{ ticket_category }}</div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Priorité</div>
+      <div class="meta-value">
+        <span class="prio prio-{{ ticket_priority|slice:':2' }}">{{ ticket_priority }}</span>
+      </div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Statut</div>
+      <div class="meta-value">{{ ticket_status }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="alert-box alert-info">
+  <div class="alert-body">Merci de traiter ce ticket dans les <strong>délais SLA définis</strong> selon la priorité indiquée.</div>
+</div>
+
+<div class="cta">
+  <a href="{{ ticket_url }}" class="btn">&#128196;&nbsp; Ouvrir le ticket</a>
+</div>
+{% endblock %}

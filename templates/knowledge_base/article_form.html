@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if object %}Modifier{% else %}Nouvel{% endif %} article{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'knowledge_base:list' %}">Base de connaissance</a></li>
+<li class="breadcrumb-item active">{% if object %}Modifier{% else %}Nouvel article{% endif %}</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-pencil me-2 text-orange"></i>{% if object %}Modifier{% else %}Nouvel article{% endif %}</h1>
+</div>
+<div class="row g-3">
+  <div class="col-lg-9">
+    <div class="card">
+      <div class="card-body">
+        <form method="post">{% csrf_token %}{% crispy form %}</form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

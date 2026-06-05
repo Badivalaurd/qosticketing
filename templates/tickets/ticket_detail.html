@@ -1,0 +1,384 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ ticket.number }}{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'tickets:list' %}">Tickets</a></li>
+<li class="breadcrumb-item active">{{ ticket.number }}</li>
+{% endblock %}
+
+{% block content %}
+
+{% if is_locked %}
+<div class="alert d-flex align-items-center gap-3 mb-3"
+     style="background:#fff3cd;border:1px solid #ffc107;border-left:4px solid #e0a800;border-radius:8px;padding:14px 18px;">
+  <i class="bi bi-lock-fill fs-5 text-warning"></i>
+  <div>
+    <strong>Ticket {{ ticket.get_status_display|lower }}</strong> —
+    Ce ticket est verrouillé. Aucune modification n'est possible (commentaires, affectation, changement de statut ou de priorité).
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <!-- Colonne principale -->
+  <div class="col-lg-8">
+
+    <!-- En-tête ticket -->
+    <div class="ticket-detail-header">
+      <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <span class="ticket-number-badge">{{ ticket.number }}</span>
+        <span class="badge status-{{ ticket.status }} text-white">{{ ticket.get_status_display }}</span>
+        <span class="badge badge-priority-{{ ticket.priority }} text-white">{{ ticket.get_priority_display }}</span>
+        <span class="badge bg-light text-dark">{{ ticket.category.name }}</span>
+
+        {% if ticket.resolved_out_of_sla %}
+        <span class="badge bg-danger"><i class="bi bi-clock-history me-1"></i>Résolu hors SLA</span>
+        {% endif %}
+        {% if ticket.is_response_overdue or ticket.is_resolution_overdue %}
+        <span class="badge bg-danger blink-badge"><i class="bi bi-exclamation-circle me-1"></i>SLA dépassé</span>
+        {% endif %}
+        {% if ticket.is_sla_paused %}
+        <span class="badge bg-warning text-dark"><i class="bi bi-pause-circle me-1"></i>SLA en pause</span>
+        {% endif %}
+      </div>
+
+      <h2 class="mb-3">{{ ticket.title }}</h2>
+
+      <div class="text-muted small">
+        Créé par <strong>{{ ticket.created_by.get_full_name|default:ticket.created_by.username }}</strong>
+        ({{ ticket.created_by.department.name|default:"—" }})
+        le <strong>{{ ticket.created_at|date:"d/m/Y à H:i" }}</strong>
+        {% if ticket.application %} · <strong>{{ ticket.application.name }}</strong>{% endif %}
+        {% if ticket.department %} · Département : <strong>{{ ticket.department.name }}</strong>{% endif %}
+      </div>
+
+      {% if can_edit %}
+      <a href="{% url 'tickets:edit' ticket.number %}" class="btn btn-sm btn-outline-secondary mt-3">
+        <i class="bi bi-pencil me-1"></i>Modifier
+      </a>
+      {% endif %}
+    </div>
+
+    <!-- SLA Bar -->
+    {% if ticket.status not in 'CLOTURE,REJETE,ANNULE' %}
+    <div class="card mb-3">
+      <div class="card-body py-2">
+        <div class="row g-3 align-items-center">
+          <!-- SLA Prise en charge -->
+          <div class="col-md-6">
+            <div class="d-flex justify-content-between small mb-1">
+              <span class="text-muted">Prise en charge</span>
+              {% if ticket.assigned_at %}
+                <span class="text-success small"><i class="bi bi-check-circle"></i>
+                  {{ ticket.assigned_at|date:"d/m H:i" }}
+                  {% if ticket.sla_response_exceeded %}<span class="text-danger ms-1">(hors délai)</span>{% endif %}
+                </span>
+              {% elif ticket.sla_response_deadline %}
+                {% if ticket.is_response_overdue %}
+                  <span class="text-danger small fw-bold"><i class="bi bi-exclamation-circle"></i> Dépassé</span>
+                {% else %}
+                  <span class="text-warning small">{{ ticket.sla_response_deadline|date:"d/m H:i" }}</span>
+                {% endif %}
+              {% endif %}
+            </div>
+            <div class="sla-bar {% if ticket.is_response_overdue %}sla-danger{% elif ticket.response_sla_percent and ticket.response_sla_percent > 80 %}sla-warning{% else %}sla-ok{% endif %}">
+              <div class="sla-progress" style="width:{% if ticket.response_sla_percent %}{{ ticket.response_sla_percent|default:0 }}{% elif ticket.assigned_at %}100{% else %}0{% endif %}%"></div>
+            </div>
+          </div>
+          <!-- SLA Traitement -->
+          <div class="col-md-6">
+            <div class="d-flex justify-content-between small mb-1">
+              <span class="text-muted">Traitement</span>
+              {% if ticket.resolved_at %}
+                <span class="{% if ticket.resolved_out_of_sla %}text-danger fw-bold{% else %}text-success{% endif %} small">
+                  <i class="bi bi-{% if ticket.resolved_out_of_sla %}exclamation-circle{% else %}check-circle{% endif %}"></i>
+                  {{ ticket.resolved_at|date:"d/m H:i" }}
+                  {% if ticket.resolved_out_of_sla %}<span class="ms-1">(hors SLA)</span>{% endif %}
+                </span>
+              {% elif ticket.sla_resolution_deadline %}
+                {% if ticket.is_resolution_overdue %}
+                  <span class="text-danger small fw-bold"><i class="bi bi-exclamation-circle"></i> Dépassé</span>
+                {% else %}
+                  <span class="text-muted small">{{ ticket.sla_resolution_deadline|date:"d/m H:i" }}</span>
+                {% endif %}
+              {% endif %}
+            </div>
+            <div class="sla-bar {% if ticket.is_resolution_overdue %}sla-danger{% elif ticket.resolution_sla_percent and ticket.resolution_sla_percent > 80 %}sla-warning{% else %}sla-ok{% endif %}">
+              <div class="sla-progress" style="width:{% if ticket.resolution_sla_percent %}{{ ticket.resolution_sla_percent|default:0 }}{% elif ticket.resolved_at %}100{% else %}0{% endif %}%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Description -->
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-file-text me-2"></i>Description</div>
+      <div class="card-body"><p class="mb-0" style="white-space:pre-wrap">{{ ticket.description }}</p></div>
+    </div>
+
+    <!-- Pièces jointes -->
+    {% if attachments %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-paperclip me-2"></i>Pièces jointes ({{ attachments.count }})</div>
+      <div class="card-body">
+        <div class="row g-2">
+          {% for att in attachments %}
+          <div class="col-sm-6 col-md-4">
+            <a href="{{ att.file.url }}" class="d-flex align-items-center gap-2 p-2 border rounded text-decoration-none text-dark" download>
+              <i class="bi bi-file-earmark fs-4 text-muted"></i>
+              <div class="small overflow-hidden">
+                <div class="text-truncate fw-600">{{ att.filename }}</div>
+                <div class="text-muted">{{ att.size_display }}</div>
+              </div>
+            </a>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Joindre un fichier -->
+    <div class="card mb-3">
+      <div class="card-body py-2">
+        <form method="post" action="{% url 'tickets:add_attachment' ticket.number %}" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
+          {% csrf_token %}
+          <input type="file" name="files" multiple class="form-control form-control-sm flex-grow-1"
+                 accept=".pdf,.xls,.xlsx,.doc,.docx,.png,.jpg,.jpeg,.gif,.txt,.log,.csv">
+          <button type="submit" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-upload me-1"></i>Joindre
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Commentaires -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-chat-dots me-2"></i>Commentaires</span>
+        <span class="badge bg-secondary">{{ comment_page_obj.paginator.count }}</span>
+      </div>
+      <div class="card-body">
+        {% for comment in comments %}
+        <div class="comment-card {% if comment.is_internal %}internal{% endif %}">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <div class="avatar-sm">{{ comment.author.first_name|first|default:comment.author.username|first|upper }}</div>
+              <div>
+                <strong class="small">{{ comment.author.get_full_name|default:comment.author.username }}</strong>
+                {% if comment.is_internal %}<span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">Interne</span>{% endif %}
+              </div>
+            </div>
+            <span class="small text-muted">{{ comment.created_at|date:"d/m/Y H:i" }}</span>
+          </div>
+          <div class="small" style="white-space:pre-wrap">{{ comment.content }}</div>
+        </div>
+        {% empty %}
+        <div class="text-center text-muted py-3"><i class="bi bi-chat-dots fs-2 d-block mb-2"></i>Aucun commentaire</div>
+        {% endfor %}
+
+        {% if comment_is_paginated %}
+        <nav class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+          <span class="small text-muted">Page {{ comment_page_obj.number }} / {{ comment_page_obj.paginator.num_pages }}</span>
+          <div class="d-flex gap-1">
+            {% if comment_page_obj.has_previous %}
+            <a href="?comment_page={{ comment_page_obj.previous_page_number }}{% if request.GET.history_page %}&history_page={{ request.GET.history_page }}{% endif %}"
+               class="btn btn-sm btn-outline-secondary">‹ Préc.</a>
+            {% endif %}
+            {% if comment_page_obj.has_next %}
+            <a href="?comment_page={{ comment_page_obj.next_page_number }}{% if request.GET.history_page %}&history_page={{ request.GET.history_page }}{% endif %}"
+               class="btn btn-sm btn-outline-secondary">Suiv. ›</a>
+            {% endif %}
+          </div>
+        </nav>
+        {% endif %}
+
+        {% if not is_locked %}
+        <hr>
+        <form method="post" action="{% url 'tickets:add_comment' ticket.number %}">
+          {% csrf_token %}{% crispy comment_form %}
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Colonne droite : Actions & Infos -->
+  <div class="col-lg-4">
+
+    <!-- Changement de statut -->
+    {% if allowed_transitions %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-arrow-repeat me-2 text-orange"></i>Changer le statut</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'tickets:change_status' ticket.number %}">
+          {% csrf_token %}{% crispy status_form %}
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Redéfinition de priorité (admin/agent) -->
+    {% if can_change_priority %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-flag me-1 text-orange"></i>
+        <strong>Redéfinir la priorité</strong>
+        <span class="badge badge-priority-{{ ticket.priority }} text-white ms-auto">
+          Actuel : {{ ticket.get_priority_display }}
+        </span>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'tickets:change_priority' ticket.number %}">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label class="form-label small fw-600">Nouvelle priorité</label>
+            <select name="priority" class="form-select form-select-sm">
+              {% for val, label in ticket.PRIORITY_CHOICES %}
+              <option value="{{ val }}" {% if val == ticket.priority %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-600">Motif (optionnel)</label>
+            <textarea name="reason" rows="2" class="form-control form-control-sm"
+                      placeholder="Expliquer la redéfinition..."></textarea>
+          </div>
+          <div class="small text-muted mb-2">
+            <i class="bi bi-info-circle me-1"></i>
+            Le SLA sera <strong>réinitialisé</strong> à partir de maintenant selon la nouvelle priorité.
+          </div>
+          <button type="submit" class="btn btn-warning btn-sm w-100">
+            <i class="bi bi-flag me-1"></i>Appliquer et réinitialiser le SLA
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Demande d'information (technicien/agent/admin, si EN_COURS) -->
+    {% if can_request_info and ticket.status == 'EN_COURS' %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-question-circle me-2 text-warning"></i>Demande d'information</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'tickets:request_info' ticket.number %}">
+          {% csrf_token %}{% crispy request_info_form %}
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Affectation -->
+    {% if can_assign %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-person-plus me-2 text-orange"></i>Affecter</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'tickets:assign' ticket.number %}">
+          {% csrf_token %}{% crispy assign_form %}
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Informations -->
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-info-circle me-2"></i>Informations</div>
+      <div class="card-body">
+        <table class="table table-sm table-borderless small mb-0">
+          <tr><td class="text-muted fw-600">Statut</td>
+            <td><span class="badge status-{{ ticket.status }} text-white">{{ ticket.get_status_display }}</span></td></tr>
+          <tr><td class="text-muted fw-600">Priorité</td>
+            <td><span class="badge badge-priority-{{ ticket.priority }} text-white">{{ ticket.get_priority_display }}</span></td></tr>
+          <tr><td class="text-muted fw-600">Demandeur</td>
+            <td>{{ ticket.created_by.get_full_name|default:ticket.created_by.username }}</td></tr>
+          <tr><td class="text-muted fw-600">Département</td>
+            <td>{{ ticket.department.name|default:"—" }}</td></tr>
+          {% if ticket.target_department %}
+          <tr><td class="text-muted fw-600">Cible</td>
+            <td>{{ ticket.target_department.name }}</td></tr>
+          {% endif %}
+          <tr><td class="text-muted fw-600">Assigné à</td>
+            <td>{{ ticket.assigned_to.get_full_name|default:"Non affecté" }}</td></tr>
+          {% if ticket.application %}
+          <tr><td class="text-muted fw-600">Application</td>
+            <td>{{ ticket.application.name }}</td></tr>
+          {% endif %}
+          <tr><td class="text-muted fw-600">Créé le</td>
+            <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td></tr>
+          {% if ticket.assigned_at %}
+          <tr><td class="text-muted fw-600">Pris en charge</td>
+            <td class="{% if ticket.sla_response_exceeded %}text-danger{% endif %}">
+              {{ ticket.assigned_at|date:"d/m/Y H:i" }}
+              {% if ticket.sla_response_exceeded %}<span class="small">(hors délai)</span>{% endif %}
+            </td></tr>
+          {% endif %}
+          {% if ticket.resolved_at %}
+          <tr><td class="text-muted fw-600">Résolu le</td>
+            <td class="{% if ticket.resolved_out_of_sla %}text-danger fw-bold{% endif %}">
+              {{ ticket.resolved_at|date:"d/m/Y H:i" }}
+              {% if ticket.resolved_out_of_sla %}<span class="small ms-1"><i class="bi bi-exclamation-triangle"></i> hors SLA</span>{% endif %}
+            </td></tr>
+          {% endif %}
+          <tr><td class="text-muted fw-600">Durée</td><td>{{ ticket.processing_time }}h</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Motif rejet/annulation -->
+    {% if ticket.status in 'REJETE' and ticket.rejection_reason %}
+    <div class="card mb-3 border-danger">
+      <div class="card-header bg-danger text-white"><i class="bi bi-x-circle me-2"></i>Motif de rejet</div>
+      <div class="card-body small">{{ ticket.rejection_reason }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Historique -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history me-2"></i>Historique</span>
+        <span class="badge bg-secondary">{{ history_page_obj.paginator.count }}</span>
+      </div>
+      <div class="card-body p-3">
+        {% for h in history %}
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="small">
+            <div class="fw-600">{{ h.action }}</div>
+            <div class="text-muted">
+              {{ h.user.get_full_name|default:h.user.username|default:"Système" }}
+              · {{ h.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+
+        {% if history_is_paginated %}
+        <nav class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+          <span class="small text-muted">Page {{ history_page_obj.number }} / {{ history_page_obj.paginator.num_pages }}</span>
+          <div class="d-flex gap-1">
+            {% if history_page_obj.has_previous %}
+            <a href="?history_page={{ history_page_obj.previous_page_number }}{% if request.GET.comment_page %}&comment_page={{ request.GET.comment_page }}{% endif %}"
+               class="btn btn-sm btn-outline-secondary" style="font-size:.75rem;">‹ Préc.</a>
+            {% endif %}
+            {% if history_page_obj.has_next %}
+            <a href="?history_page={{ history_page_obj.next_page_number }}{% if request.GET.comment_page %}&comment_page={{ request.GET.comment_page }}{% endif %}"
+               class="btn btn-sm btn-outline-secondary" style="font-size:.75rem;">Suiv. ›</a>
+            {% endif %}
+          </div>
+        </nav>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+.blink-badge { animation: blink 1.5s infinite; }
+</style>
+{% endblock %}

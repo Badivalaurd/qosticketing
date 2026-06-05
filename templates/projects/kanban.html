@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Kanban - {{ project.name }}{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
+<li class="breadcrumb-item"><a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a></li>
+<li class="breadcrumb-item active">Kanban</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.col-BACKLOG .kanban-column-header { background: #6c757d; color: white; }
+.col-TODO .kanban-column-header { background: #0d6efd; color: white; }
+.col-IN_PROGRESS .kanban-column-header { background: #fd7e14; color: white; }
+.col-IN_TEST .kanban-column-header { background: #6f42c1; color: white; }
+.col-DONE .kanban-column-header { background: #198754; color: white; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-kanban me-2 text-orange"></i>{{ project.name }}</h1>
+    <div class="d-flex gap-2 mt-1">
+      {% for sprint in sprints %}
+      <a href="?sprint={{ sprint.pk }}" class="btn btn-sm {% if current_sprint.pk == sprint.pk %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+        {{ sprint.name }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'projects:detail' project.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-list me-1"></i>Backlog
+    </a>
+    <a href="{% url 'projects:gantt' project.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-bar-chart-steps me-1"></i>Gantt
+    </a>
+  </div>
+</div>
+
+<div class="kanban-board">
+  {% for status, col in columns.items %}
+  <div class="kanban-column col-{{ status }}">
+    <div class="kanban-column-header">
+      <span>{{ col.label }}</span>
+      <span class="badge bg-white text-dark">{{ col.stories.count }}</span>
+    </div>
+    <div class="kanban-column-body" data-status="{{ status }}">
+      {% for story in col.stories %}
+      <div class="kanban-card" data-id="{{ story.pk }}">
+        <div class="card-title">{{ story.title }}</div>
+        {% if story.epic %}
+        <div class="small mb-2">
+          <span class="badge" style="background:{{ story.epic.color }}">{{ story.epic.name }}</span>
+        </div>
+        {% endif %}
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex gap-1">
+            {% if story.story_points %}
+            <span class="badge bg-light text-dark small">{{ story.story_points }}pts</span>
+            {% endif %}
+          </div>
+          {% if story.assignee %}
+          <div class="avatar-sm" style="width:24px;height:24px;font-size:0.7rem" title="{{ story.assignee.get_full_name }}">
+            {{ story.assignee.first_name|first|default:story.assignee.username|first|upper }}
+          </div>
+          {% endif %}
+        </div>
+        <!-- Status move buttons -->
+        <div class="d-flex gap-1 mt-2 flex-wrap">
+          {% if status != 'BACKLOG' %}
+          <form method="post" action="{% url 'projects:update_story_status' story.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="BACKLOG">
+            <button type="submit" class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size:0.65rem">Backlog</button>
+          </form>
+          {% endif %}
+          {% if status != 'DONE' %}
+          <form method="post" action="{% url 'projects:update_story_status' story.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="DONE">
+            <button type="submit" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:0.65rem">Terminé</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

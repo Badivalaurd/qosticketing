@@ -1,0 +1,42 @@
+{% extends 'email/base_email.html' %}
+
+{% block header_label %}Projet mis à jour{% endblock %}
+
+{% block event_banner %}
+<div style="background:#fff8e1;border-bottom:1px solid #ffe082;padding:12px 28px;display:flex;align-items:center;gap:10px;">
+  <span style="width:32px;height:32px;background:#ff991f;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;line-height:32px;text-align:center;">🔄</span>
+  <div>
+    <div style="font-size:13px;font-weight:700;color:#a85400;">Évolution du projet</div>
+    <div style="font-size:11px;color:#97a0af;margin-top:1px;">Le statut du projet a été modifié</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="greeting">Bonjour <strong>{{ recipient_name }}</strong>,</p>
+<p style="font-size:14px;color:#42526e;margin:0 0 4px;">{{ message }}</p>
+
+<div class="ticket-box" style="border-color:#c8d8ff;">
+  <div style="padding:14px 16px;">
+    <div style="font-size:15px;font-weight:700;color:#1a1d2e;margin-bottom:8px;">{{ project_name }}</div>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td class="meta-col">
+          <div class="meta-label">Code</div>
+          <div class="meta-value">{{ project_code }}</div>
+        </td>
+        <td class="meta-col">
+          <div class="meta-label">Nouveau statut</div>
+          <div class="meta-value">
+            <span style="background:#e3fcef;color:#006644;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">{{ project_status }}</span>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="cta">
+  <a href="{{ project_url }}" class="btn" style="background:#0052cc;">&#128203;&nbsp; Voir le projet</a>
+</div>
+{% endblock %}
