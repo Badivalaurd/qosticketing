@@ -1,0 +1,19 @@
+# ============================================================
+# Dépendances — Mode Desktop (exécutable Windows)
+# pip install -r requirements_desktop.txt
+# ============================================================
+
+# Hérite de toutes les dépendances de base
+-r requirements.txt
+
+# Compilation en exécutable Windows
+pyinstaller>=6.5
+
+# Driver PostgreSQL (remplace la version dev si nécessaire)
+psycopg2-binary>=2.9
+
+# Interface graphique pour les dialogues d'erreur / mise à jour
+# (Tkinter est inclus dans Python Windows — pas besoin d'installer)
+
+# Suppression de Celery et Redis (non utilisés en mode desktop)
+# Les workers Celery ne tournent pas localement

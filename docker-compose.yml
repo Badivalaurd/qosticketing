@@ -1,26 +1,37 @@
 version: '3.9'
 
+# ---------------------------------------------------------------------------
+# Mode DESKTOP TEST : seul le service `postgres` est nécessaire.
+# Lancer avec : docker compose up postgres
+# La BD est accessible sur localhost:5432 pour tous les postes du réseau local.
+# ---------------------------------------------------------------------------
 services:
-  db:
+  postgres:
     image: postgres:16-alpine
+    container_name: qos_postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: qos_ticketing
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_USER: qos_user
+      POSTGRES_PASSWORD: qos_secret_2026
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U qos_user -d qos_ticketing"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # Services legacy (déploiement PythonAnywhere) — non utilisés en mode desktop
   redis:
     image: redis:7-alpine
+    container_name: qos_redis
     ports:
       - "6379:6379"
+    profiles:
+      - server
 
   web:
     build: .
@@ -34,34 +45,15 @@ services:
     environment:
       - DB_ENGINE=django.db.backends.postgresql
       - DB_NAME=qos_ticketing
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres_password
-      - DB_HOST=db
+      - DB_USER=qos_user
+      - DB_PASSWORD=qos_secret_2026
+      - DB_HOST=postgres
       - DB_PORT=5432
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - REDIS_URL=redis://redis:6379/0
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
-
-  celery:
-    build: .
-    command: celery -A config worker -l info
-    volumes:
-      - .:/app
-    env_file: .env
-    environment:
-      - DB_ENGINE=django.db.backends.postgresql
-      - DB_NAME=qos_ticketing
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres_password
-      - DB_HOST=db
-      - CELERY_BROKER_URL=redis://redis:6379/0
-    depends_on:
-      - db
-      - redis
+    profiles:
+      - server
 
 volumes:
   postgres_data:

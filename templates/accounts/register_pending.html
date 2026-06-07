@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Confirmation envoyée — QoS Ticketing{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 text-center">
+      <div class="card border-success shadow-sm">
+        <div class="card-body py-5">
+          <i class="bi bi-envelope-check-fill text-success" style="font-size:3rem"></i>
+          <h4 class="mt-3">Email de confirmation envoyé</h4>
+          <p class="lead mt-2">
+            Un email a été envoyé à <strong>{{ email }}</strong>.
+          </p>
+          <p class="text-muted">
+            Cliquez sur le lien dans l'email pour activer votre compte.<br>
+            Le lien est valable <strong>24 heures</strong>.
+          </p>
+          <hr>
+          <p class="text-muted small">
+            Vous n'avez pas reçu l'email ? Vérifiez vos spams.<br>
+            Si le problème persiste, contactez l'administrateur.
+          </p>
+          <a href="{% url 'account_login' %}" class="btn btn-outline-primary mt-2">
+            Retour à la connexion
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

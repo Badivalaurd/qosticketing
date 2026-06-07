@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Mise à jour requise — QoS Ticketing{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-7">
+      <div class="card border-warning shadow">
+        <div class="card-header bg-warning text-dark text-center">
+          <h4 class="mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i>Mise à jour requise</h4>
+        </div>
+        <div class="card-body text-center py-4">
+          <p class="lead">Une nouvelle version de QoS Ticketing est disponible.</p>
+          <p>Vous utilisez une version qui n'est plus supportée.<br>
+             Vous devez mettre à jour l'application pour continuer à l'utiliser.</p>
+
+          {% if release_notes %}
+          <div class="alert alert-light text-start mt-3">
+            <strong>Notes de version v{{ latest_version }} :</strong>
+            <p class="mb-0 mt-2" style="white-space: pre-line;">{{ release_notes }}</p>
+          </div>
+          {% endif %}
+
+          <a href="{{ download_url }}" target="_blank" class="btn btn-warning btn-lg mt-3">
+            <i class="bi bi-download me-2"></i>Télécharger la mise à jour (v{{ latest_version }})
+          </a>
+          <p class="text-muted mt-3 small">
+            Le lien ouvre SharePoint. Téléchargez le fichier <code>QoSTicketing.exe</code>,
+            puis exécutez-le. Il remplacera automatiquement l'ancienne version.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

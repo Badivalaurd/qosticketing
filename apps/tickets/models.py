@@ -258,6 +258,16 @@ class Ticket(models.Model):
     # ---- Rejet / Annulation ----
     rejection_reason = models.TextField('Motif de rejet', blank=True)
 
+    # ---- Ticket secret ----
+    is_secret = models.BooleanField(
+        'Ticket secret', default=False,
+        help_text=(
+            'Ticket confidentiel : visible uniquement par le demandeur, '
+            'l\'agent de support et l\'administrateur. '
+            'Utilisé pour les demandes de réinitialisation de mot de passe sans email.'
+        )
+    )
+
     # ---- Lié à un projet ----
     project = models.ForeignKey(
         'projects.Project', null=True, blank=True, on_delete=models.SET_NULL,
@@ -546,6 +556,13 @@ class Ticket(models.Model):
     def can_user_see(self, user):
         """Vérifie si un utilisateur a le droit de voir ce ticket."""
         from apps.accounts.models import User as U
+
+        # Tickets secrets : uniquement demandeur, admin, agent de support
+        if self.is_secret:
+            if user.role in [U.ROLE_ADMIN, U.ROLE_AGENT]:
+                return True
+            return self.created_by == user
+
         # Admin, Agent, Technicien : vue globale
         if user.role in [U.ROLE_ADMIN, U.ROLE_AGENT, U.ROLE_TECHNICIEN]:
             return True
@@ -554,7 +571,7 @@ class Ticket(models.Model):
             if user.is_it_member:
                 return True
             return self.department == user.department
-        # Manager : son département
+        # Manager : son département uniquement (pas les tickets secrets même de son dept)
         if user.role == U.ROLE_MANAGER:
             return self.target_department == user.department or self.department == user.department
         # Demandeur : tickets de son département

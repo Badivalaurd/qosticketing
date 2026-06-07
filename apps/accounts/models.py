@@ -71,6 +71,14 @@ class User(AbstractUser):
     bio = models.TextField('Biographie', blank=True)
     is_active = models.BooleanField('Actif', default=True)
 
+    # ── Inscription desktop ──────────────────────────────────────────
+    email_confirm_token = models.CharField(
+        'Token confirmation email', max_length=100, blank=True, db_index=True
+    )
+    email_confirm_sent_at = models.DateTimeField(
+        'Email de confirmation envoyé le', null=True, blank=True
+    )
+
     class Meta:
         verbose_name = 'Utilisateur'
         verbose_name_plural = 'Utilisateurs'
@@ -126,6 +134,36 @@ class User(AbstractUser):
         if self.avatar:
             return self.avatar.url
         return None
+
+
+class ApprovedCUID(models.Model):
+    """
+    Liste des CUIDs professionnels autorisés à s'inscrire.
+    Chargée par l'admin avant tout déploiement.
+    """
+    cuid = models.CharField('CUID professionnel', max_length=50, unique=True)
+    email_hint = models.EmailField(
+        'Email attendu', blank=True,
+        help_text='Optionnel — pré-indique l\'email attendu pour ce CUID.'
+    )
+    is_registered = models.BooleanField('Inscrit', default=False)
+    registered_user = models.OneToOneField(
+        'User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='approved_cuid', verbose_name='Utilisateur'
+    )
+    added_by = models.ForeignKey(
+        'User', null=True, on_delete=models.SET_NULL,
+        related_name='added_cuids', verbose_name='Ajouté par'
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'CUID approuvé'
+        verbose_name_plural = 'CUIDs approuvés'
+        ordering = ['cuid']
+
+    def __str__(self):
+        return f"{self.cuid} ({'inscrit' if self.is_registered else 'disponible'})"
 
 
 class AuditLog(models.Model):
