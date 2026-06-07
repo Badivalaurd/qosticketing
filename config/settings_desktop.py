@@ -80,12 +80,13 @@ INSTALLED_APPS = [app for app in INSTALLED_APPS] + [  # noqa: F405
 ]
 
 # ── Middleware ─────────────────────────────────────────────────────────────
-# Insérer le middleware de détection hors-ligne juste après SecurityMiddleware
+# Insérer APRÈS AuthenticationMiddleware (request.user doit déjà exister)
 _mw = list(MIDDLEWARE)  # noqa: F405
-_security_idx = next(
-    (i for i, m in enumerate(_mw) if 'SecurityMiddleware' in m), 0
+_auth_idx = next(
+    (i for i, m in enumerate(_mw) if 'AuthenticationMiddleware' in m),
+    len(_mw) - 1
 )
-_mw.insert(_security_idx + 1, 'apps.local_sync.middleware.OfflineDetectionMiddleware')
+_mw.insert(_auth_idx + 1, 'apps.local_sync.middleware.OfflineDetectionMiddleware')
 MIDDLEWARE = _mw
 
 # ── Authentification hybride ───────────────────────────────────────────────

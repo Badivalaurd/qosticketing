@@ -23,7 +23,8 @@ class OfflineDetectionMiddleware:
         request.pg_available = is_postgres_available()
 
         # Vérification blocage utilisateur connecté
-        if request.user.is_authenticated:
+        # Garde : request.user n'existe que si AuthenticationMiddleware a déjà tourné
+        if getattr(request, 'user', None) is not None and request.user.is_authenticated:
             self._check_user_block(request)
 
         response = self.get_response(request)
