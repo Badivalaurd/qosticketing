@@ -1,14 +1,14 @@
-"""
-QoS Ticketing — Launcher Windows (exécutable autonome)
+r"""
+QoS Ticketing -- Launcher Windows (executable autonome)
 
-Point d'entrée compilé par PyInstaller → QoSTicketing.exe
+Point d'entree compile par PyInstaller -> QoSTicketing.exe
 
-Responsabilités :
-  1. Auto-installation (copie dans %APPDATA%\QoSTicketing\app\ si première exécution)
-  2. Vérification de version / mise à jour forcée
-  3. Démarrage du serveur Django local sur localhost:port libre
-  4. Ouverture du navigateur par défaut
-  5. Maintien de l'application ouverte jusqu'à fermeture du navigateur
+Responsabilites :
+  1. Auto-installation (copie dans %APPDATA%/QoSTicketing/app/ si premiere execution)
+  2. Verification de version / mise a jour forcee
+  3. Demarrage du serveur Django local sur localhost:port libre
+  4. Ouverture du navigateur par defaut
+  5. Maintien de l application ouverte jusqu a fermeture
 """
 
 import os

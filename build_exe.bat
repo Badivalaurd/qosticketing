@@ -17,7 +17,7 @@ if exist build rmdir /s /q build
 if exist dist  rmdir /s /q dist
 
 echo [3/4] Compilation avec PyInstaller...
-pyinstaller launcher.spec --clean
+python -m PyInstaller launcher.spec --clean
 if errorlevel 1 (
     echo ERREUR : PyInstaller a echoue.
     pause
