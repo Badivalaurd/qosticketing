@@ -128,6 +128,7 @@ CRISPY_TEMPLATE_PACK = 'bootstrap5'
 ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'optional'
+ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 LOGIN_URL = '/accounts/login/'
@@ -182,4 +183,64 @@ SLA_HOURS = {
     'HAUTE': 8,
     'MOYENNE': 24,
     'FAIBLE': 72,
+}
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'console': {
+            'format': '\033[36m{asctime}\033[0m [{levelname}] {name} | {message}',
+            'style': '{',
+            'datefmt': '%H:%M:%S',
+        },
+        'file': {
+            'format': '{asctime} [{levelname}] {name} | user={user} | {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+            'defaults': {'user': 'system'},
+        },
+    },
+    'filters': [],
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'console',
+        },
+        'daily_global': {
+            '()': 'apps.accounts.log_handlers.DailyFileHandler',
+            'log_dir': str(LOGS_DIR),
+            'formatter': 'file',
+        },
+        'daily_user': {
+            '()': 'apps.accounts.log_handlers.UserDailyFileHandler',
+            'log_dir': str(LOGS_DIR),
+            'formatter': 'file',
+        },
+    },
+    'loggers': {
+        'apps': {
+            'handlers': ['console', 'daily_global', 'daily_user'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
 }

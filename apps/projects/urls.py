@@ -10,7 +10,17 @@ urlpatterns = [
     path('<int:pk>/edit/', views.ProjectUpdateView.as_view(), name='update'),
     path('<int:pk>/kanban/', views.kanban_board, name='kanban'),
     path('<int:pk>/gantt/', views.gantt_view, name='gantt'),
+
+    # Sprints
+    path('<int:project_pk>/sprints/new/', views.sprint_create, name='sprint_create'),
     path('<int:project_pk>/sprints/<int:sprint_pk>/', views.sprint_detail, name='sprint_detail'),
+    path('<int:project_pk>/sprints/<int:sprint_pk>/edit/', views.sprint_update, name='sprint_update'),
+
+    # Livrables
+    path('<int:project_pk>/deliverables/new/', views.deliverable_create, name='deliverable_create'),
+    path('<int:project_pk>/deliverables/<int:deliverable_pk>/edit/', views.deliverable_update, name='deliverable_update'),
+
+    # User stories et tâches
     path('<int:project_pk>/stories/<int:story_pk>/', views.story_detail, name='story_detail'),
     path('stories/<int:pk>/status/', views.update_story_status, name='update_story_status'),
 ]

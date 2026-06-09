@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Importer les employés autorisés — QoS Ticketing{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row">
+    <div class="col-lg-7">
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-file-earmark-excel me-2"></i>Importer les employés autorisés</h5>
+        </div>
+        <div class="card-body p-4">
+
+          <p class="text-muted">
+            Chargez un fichier <strong>.xlsx</strong> avec les colonnes suivantes (ligne 1 = en-têtes) :
+          </p>
+          <div class="table-responsive mb-3">
+            <table class="table table-sm table-bordered text-center">
+              <thead class="table-light">
+                <tr>
+                  <th>Colonne A</th><th>Colonne B</th><th>Colonne C</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>CUID</strong></td>
+                  <td><strong>Statut</strong><br><small class="text-muted">permanent / intérimaire / stagiaire / temporaire</small></td>
+                  <td><strong>Département</strong><br><small class="text-muted">Nom exact du département</small></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {% if messages %}
+            {% for msg in messages %}
+            <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible">
+              {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+          {% endif %}
+
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label fw-bold">Fichier Excel</label>
+              <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls" required>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-upload me-2"></i>Importer
+            </button>
+          </form>
+
+        </div>
+      </div>
+
+      {% if results %}
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">Résultat de l'import</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="d-flex gap-3 p-3 border-bottom">
+            <span class="badge bg-success fs-6">{{ results.created }} créé(s)</span>
+            <span class="badge bg-warning text-dark fs-6">{{ results.updated }} mis à jour</span>
+            <span class="badge bg-secondary fs-6">{{ results.skipped }} ignoré(s)</span>
+          </div>
+          <div class="table-responsive" style="max-height:400px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr><th>#</th><th>CUID</th><th>Action</th><th>Détail</th></tr>
+              </thead>
+              <tbody>
+                {% for r in results.rows %}
+                <tr class="{% if r.status == 'créé' %}table-success{% elif r.status == 'mis à jour' %}table-warning{% else %}table-secondary{% endif %}">
+                  <td>{{ r.row }}</td>
+                  <td><code>{{ r.cuid }}</code></td>
+                  <td>{{ r.status }}</td>
+                  <td class="text-muted small">{{ r.detail }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card border-info shadow-sm">
+        <div class="card-header bg-info bg-opacity-10 text-info">
+          <i class="bi bi-info-circle me-1"></i> Instructions
+        </div>
+        <div class="card-body small">
+          <ul class="mb-0">
+            <li>Les CUIDs existants sont <strong>mis à jour</strong> (non dupliqués).</li>
+            <li>Le département doit correspondre à un département déjà créé dans le système (recherche insensible à la casse).</li>
+            <li>Si le département n'est pas trouvé, le CUID est importé sans département.</li>
+            <li>Valeurs acceptées pour le statut : <code>permanent</code>, <code>interimaire</code>, <code>stagiaire</code>, <code>temporaire</code>.</li>
+            <li>Les CUIDs marqués comme <em>inscrits</em> ne sont pas réinitialisés.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

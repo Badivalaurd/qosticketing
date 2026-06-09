@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirmation d'inscription — QoS Ticketing</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f4;padding:30px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- EN-TÊTE -->
+          <tr>
+            <td style="background-color:#F16E00;padding:28px 40px;text-align:center;">
+              <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.75);letter-spacing:2px;text-transform:uppercase;font-weight:600;">Plateforme interne</p>
+              <h1 style="margin:6px 0 0;font-size:26px;font-weight:700;color:#ffffff;letter-spacing:0.5px;">QoS Ticketing</h1>
+              <p style="margin:4px 0 0;font-size:13px;color:rgba(255,255,255,0.85);">Gestion des tickets et incidents — OMCM</p>
+            </td>
+          </tr>
+
+          <!-- CORPS -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+              <p style="margin:0 0 8px;font-size:15px;color:#1a1a1a;">Bonjour <strong>{{first_name}}</strong>,</p>
+              <p style="margin:0 0 24px;font-size:15px;color:#444444;line-height:1.6;">
+                Bienvenue sur QoS Ticketing ! Pour finaliser votre inscription,
+                saisissez le code ci-dessous sur la page de confirmation.
+              </p>
+
+              <!-- CODE -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="padding:8px 0 28px;">
+                    <div style="display:inline-block;background:#FFF4E8;border:2px solid #F16E00;border-radius:10px;padding:20px 40px;text-align:center;">
+                      <p style="margin:0 0 6px;font-size:12px;color:#F16E00;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;">Votre code de confirmation</p>
+                      <p style="margin:0;font-size:38px;font-weight:700;color:#1a1a1a;letter-spacing:10px;font-family:'Courier New',monospace;">{{code}}</p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- INFO DÉLAI -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+                <tr>
+                  <td style="background:#FFF9F0;border-left:4px solid #F16E00;border-radius:0 6px 6px 0;padding:14px 18px;">
+                    <p style="margin:0;font-size:13px;color:#555555;line-height:1.5;">
+                      ⏱&nbsp; Ce code est valable <strong>5 minutes</strong> à partir de la réception de cet email.<br>
+                      Passé ce délai, cliquez sur « Renvoyer un nouveau code » sur la page de confirmation.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0;font-size:13px;color:#888888;line-height:1.6;">
+                Si vous n'êtes pas à l'origine de cette inscription, ignorez ce message.<br>
+                Aucun compte ne sera créé sans la saisie du code.
+              </p>
+            </td>
+          </tr>
+
+          <!-- SÉPARATEUR -->
+          <tr>
+            <td style="padding:0 40px;">
+              <hr style="border:none;border-top:1px solid #eeeeee;margin:0;">
+            </td>
+          </tr>
+
+          <!-- PIED DE PAGE — SIGNATURE ORANGE MONEY -->
+          <tr>
+            <td style="padding:24px 40px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <!-- Logo / Marque -->
+                  <td width="60" valign="middle" style="padding-right:16px;">
+                    <div style="width:50px;height:50px;background-color:#F16E00;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;text-align:center;line-height:50px;">
+                      <span style="font-size:20px;font-weight:700;color:#ffffff;font-family:Arial,sans-serif;">OM</span>
+                    </div>
+                  </td>
+                  <!-- Info société -->
+                  <td valign="middle">
+                    <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#1a1a1a;">Orange Money Cameroun</p>
+                    <p style="margin:0 0 2px;font-size:12px;color:#666666;">Société Anonyme · OMCM</p>
+                    <p style="margin:0;font-size:12px;color:#888888;">Yaoundé, Cameroun &nbsp;·&nbsp; <a href="mailto:support@orangemoney.cm" style="color:#F16E00;text-decoration:none;">support@orangemoney.cm</a></p>
+                  </td>
+                  <!-- Orange branding -->
+                  <td align="right" valign="middle">
+                    <div style="text-align:right;">
+                      <span style="display:inline-block;background:#F16E00;color:#fff;font-size:11px;font-weight:700;letter-spacing:1px;padding:5px 12px;border-radius:4px;text-transform:uppercase;">Orange</span>
+                      <p style="margin:4px 0 0;font-size:10px;color:#aaaaaa;text-align:right;">Money · Cameroun</p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:20px 0 0;font-size:11px;color:#bbbbbb;text-align:center;line-height:1.5;">
+                Cet email a été envoyé automatiquement par la plateforme QoS Ticketing.<br>
+                Merci de ne pas répondre à cet email.
+              </p>
+            </td>
+          </tr>
+
+          <!-- BARRE BAS -->
+          <tr>
+            <td style="background:#1a1a1a;padding:12px 40px;text-align:center;">
+              <p style="margin:0;font-size:11px;color:#666666;">
+                &copy; 2026 Orange Money Cameroun (OMCM) — Tous droits réservés
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

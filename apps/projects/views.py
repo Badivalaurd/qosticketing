@@ -8,27 +8,32 @@ from django.urls import reverse_lazy
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.core.exceptions import PermissionDenied
-from .models import Project, Sprint, Epic, UserStory, Task
-from .forms import ProjectForm, SprintForm, EpicForm, UserStoryForm, TaskForm
+from .models import Project, Sprint, Epic, UserStory, Task, Deliverable
+from .forms import ProjectForm, SprintForm, EpicForm, UserStoryForm, TaskForm, DeliverableForm
 
 
 def user_can_see_projects(user):
-    """Membres du département IT OU membres d'au moins un projet."""
-    if user.is_it_member:
-        return True
-    # Un utilisateur ajouté comme membre d'un projet peut y accéder
-    return Project.objects.filter(team=user).exists()
+    """Onglet Projets : membres IT uniquement. Projet spécifique : membres invités aussi."""
+    return user.is_it_member or user.is_admin
 
 
 def user_can_see_project(user, project):
-    """Peut voir CE projet spécifique."""
-    return user.is_it_member or project.team.filter(pk=user.pk).exists()
+    """Peut voir CE projet : IT member OU membre de l'équipe projet."""
+    return user.is_it_member or user.is_admin or project.team.filter(pk=user.pk).exists()
 
 
-def user_can_create_project(user):
-    """Seuls admin et agent de support du département Informatique."""
-    from apps.accounts.models import User as U
-    return user.is_it_member and user.role in [U.ROLE_ADMIN, U.ROLE_AGENT]
+def user_can_manage_project(user, project=None):
+    """Chef de projet : crée projets, sprints, livrables, assigne le responsable."""
+    return user.can_manage_projects
+
+
+def user_can_execute_project(user, project):
+    """Responsable d'exécution : crée user stories et tâches."""
+    return (
+        user.can_manage_projects or
+        (project.responsable_id and project.responsable_id == user.pk) or
+        user.is_admin
+    )
 
 
 class ITRequiredMixin(UserPassesTestMixin):
@@ -36,7 +41,7 @@ class ITRequiredMixin(UserPassesTestMixin):
         return user_can_see_projects(self.request.user)
 
     def handle_no_permission(self):
-        messages.error(self.request, "Accès réservé aux membres du département Informatique ou aux membres d'un projet.")
+        messages.error(self.request, "Accès réservé aux membres du département Informatique.")
         return redirect('dashboard:home')
 
 
@@ -56,7 +61,7 @@ class ProjectListView(LoginRequiredMixin, ITRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['can_create'] = user_can_create_project(self.request.user)
+        ctx['can_create'] = user_can_manage_project(self.request.user)
         return ctx
 
 
@@ -77,7 +82,9 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx['sprints'] = project.sprints.all()
         ctx['epics'] = project.epics.all()
         ctx['backlog'] = project.user_stories.filter(sprint=None).order_by('order')
-        ctx['can_edit'] = user_can_create_project(user)
+        ctx['deliverables'] = project.deliverables.select_related('sprint').order_by('due_date')
+        ctx['can_manage'] = user_can_manage_project(user, project)
+        ctx['can_execute'] = user_can_execute_project(user, project)
         ctx['is_it_member'] = user.is_it_member
         ctx['is_team_member'] = project.team.filter(pk=user.pk).exists()
 
@@ -103,10 +110,10 @@ class ProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     success_url = reverse_lazy('projects:list')
 
     def test_func(self):
-        return user_can_create_project(self.request.user)
+        return user_can_manage_project(self.request.user)
 
     def handle_no_permission(self):
-        messages.error(self.request, "Seuls l'admin et l'agent de support peuvent créer un projet.")
+        messages.error(self.request, "Seuls les chefs de projet IT peuvent créer un projet.")
         return redirect('projects:list')
 
     def form_valid(self, form):
@@ -122,19 +129,15 @@ class ProjectUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     success_url = reverse_lazy('projects:list')
 
     def test_func(self):
-        return user_can_create_project(self.request.user)
+        return user_can_manage_project(self.request.user)
 
     def handle_no_permission(self):
-        messages.error(self.request, "Modification non autorisée.")
+        messages.error(self.request, "Modification réservée aux chefs de projet IT.")
         return redirect('projects:list')
 
     def form_valid(self, form):
-        old_status = self.get_object().status
-        response = super().form_valid(form)
-        if form.instance.status != old_status:
-            form.instance._status_changed = True
-            form.instance.save(update_fields=['status'])
-        return response
+        messages.success(self.request, 'Projet mis à jour.')
+        return super().form_valid(form)
 
 
 @login_required
@@ -213,7 +216,12 @@ def story_detail(request, project_pk, story_pk):
         return redirect('dashboard:home')
     project = get_object_or_404(Project, pk=project_pk)
     story = get_object_or_404(UserStory, pk=story_pk, project=project)
+    can_execute = user_can_execute_project(request.user, project)
+
     if request.method == 'POST':
+        if not can_execute:
+            messages.error(request, "Seul le responsable d'exécution peut créer des tâches.")
+            return redirect('projects:story_detail', project_pk=project_pk, story_pk=story_pk)
         form = TaskForm(request.POST)
         if form.is_valid():
             task = form.save(commit=False)
@@ -225,5 +233,88 @@ def story_detail(request, project_pk, story_pk):
         form = TaskForm()
     return render(request, 'projects/story_detail.html', {
         'project': project, 'story': story,
-        'tasks': story.tasks.all(), 'form': form
+        'tasks': story.tasks.all(), 'form': form,
+        'can_execute': can_execute,
     })
+
+
+# ── Sprint CRUD ───────────────────────────────────────────────────────────────
+
+@login_required
+def sprint_create(request, project_pk):
+    project = get_object_or_404(Project, pk=project_pk)
+    if not user_can_manage_project(request.user, project):
+        messages.error(request, "Seul le chef de projet peut créer des sprints.")
+        return redirect('projects:detail', pk=project_pk)
+
+    if request.method == 'POST':
+        form = SprintForm(request.POST)
+        if form.is_valid():
+            sprint = form.save(commit=False)
+            sprint.project = project
+            sprint.save()
+            messages.success(request, f'Sprint « {sprint.name} » créé.')
+            return redirect('projects:detail', pk=project_pk)
+    else:
+        form = SprintForm()
+    return render(request, 'projects/sprint_form.html', {'form': form, 'project': project, 'action': 'Créer'})
+
+
+@login_required
+def sprint_update(request, project_pk, sprint_pk):
+    project = get_object_or_404(Project, pk=project_pk)
+    sprint = get_object_or_404(Sprint, pk=sprint_pk, project=project)
+    if not user_can_manage_project(request.user, project):
+        messages.error(request, "Modification réservée au chef de projet.")
+        return redirect('projects:detail', pk=project_pk)
+
+    if request.method == 'POST':
+        form = SprintForm(request.POST, instance=sprint)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Sprint mis à jour.')
+            return redirect('projects:detail', pk=project_pk)
+    else:
+        form = SprintForm(instance=sprint)
+    return render(request, 'projects/sprint_form.html', {'form': form, 'project': project, 'sprint': sprint, 'action': 'Modifier'})
+
+
+# ── Deliverable CRUD ──────────────────────────────────────────────────────────
+
+@login_required
+def deliverable_create(request, project_pk):
+    project = get_object_or_404(Project, pk=project_pk)
+    if not user_can_manage_project(request.user, project):
+        messages.error(request, "Seul le chef de projet peut définir les livrables.")
+        return redirect('projects:detail', pk=project_pk)
+
+    if request.method == 'POST':
+        form = DeliverableForm(request.POST, project=project)
+        if form.is_valid():
+            deliverable = form.save(commit=False)
+            deliverable.project = project
+            deliverable.save()
+            messages.success(request, f'Livrable « {deliverable.title} » créé.')
+            return redirect('projects:detail', pk=project_pk)
+    else:
+        form = DeliverableForm(project=project)
+    return render(request, 'projects/deliverable_form.html', {'form': form, 'project': project, 'action': 'Créer'})
+
+
+@login_required
+def deliverable_update(request, project_pk, deliverable_pk):
+    project = get_object_or_404(Project, pk=project_pk)
+    deliverable = get_object_or_404(Deliverable, pk=deliverable_pk, project=project)
+    if not user_can_manage_project(request.user, project):
+        messages.error(request, "Modification réservée au chef de projet.")
+        return redirect('projects:detail', pk=project_pk)
+
+    if request.method == 'POST':
+        form = DeliverableForm(request.POST, instance=deliverable, project=project)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Livrable mis à jour.')
+            return redirect('projects:detail', pk=project_pk)
+    else:
+        form = DeliverableForm(instance=deliverable, project=project)
+    return render(request, 'projects/deliverable_form.html', {'form': form, 'project': project, 'deliverable': deliverable, 'action': 'Modifier'})

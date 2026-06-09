@@ -70,6 +70,26 @@ class User(AbstractUser):
     avatar = models.ImageField('Avatar', upload_to='avatars/', null=True, blank=True)
     bio = models.TextField('Biographie', blank=True)
     is_active = models.BooleanField('Actif', default=True)
+    is_project_manager = models.BooleanField(
+        'Chef de projet IT', default=False,
+        help_text='Permet de créer et piloter des projets (en plus du rôle principal).'
+    )
+
+    # ── Confirmation email à l'inscription ──────────────────────────
+    email_confirm_code = models.CharField(
+        'Code de confirmation', max_length=8, blank=True
+    )
+    email_confirm_sent_at = models.DateTimeField(
+        'Code envoyé le', null=True, blank=True
+    )
+
+    # ── Réinitialisation de mot de passe par code ────────────────────
+    pwd_reset_code = models.CharField(
+        'Code reset MDP', max_length=8, blank=True
+    )
+    pwd_reset_sent_at = models.DateTimeField(
+        'Code reset envoyé le', null=True, blank=True
+    )
 
     class Meta:
         verbose_name = 'Utilisateur'
@@ -122,10 +142,59 @@ class User(AbstractUser):
         return self.role in [self.ROLE_ADMIN, self.ROLE_AGENT, self.ROLE_TECHNICIEN]
 
     @property
+    def can_manage_projects(self):
+        """Chef de projet IT : crée projets, sprints, livrables."""
+        return self.is_it_member and (self.is_project_manager or self.role == self.ROLE_ADMIN)
+
+    @property
     def avatar_url(self):
         if self.avatar:
             return self.avatar.url
         return None
+
+
+class AuthorizedEmployee(models.Model):
+    """
+    Base des CUIDs autorisés à s'inscrire, chargée par l'admin via fichier Excel.
+    Colonnes Excel : CUID | Statut | Département
+    """
+    STATUS_PERMANENT   = 'permanent'
+    STATUS_INTERIMAIRE = 'interimaire'
+    STATUS_STAGIAIRE   = 'stagiaire'
+    STATUS_TEMPORAIRE  = 'temporaire'
+
+    STATUS_CHOICES = [
+        (STATUS_PERMANENT,   'Permanent'),
+        (STATUS_INTERIMAIRE, 'Intérimaire'),
+        (STATUS_STAGIAIRE,   'Stagiaire'),
+        (STATUS_TEMPORAIRE,  'Temporaire'),
+    ]
+
+    cuid = models.CharField('CUID', max_length=50, unique=True)
+    employee_status = models.CharField(
+        'Statut', max_length=20, choices=STATUS_CHOICES, default=STATUS_PERMANENT
+    )
+    department = models.ForeignKey(
+        Department, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='authorized_employees', verbose_name='Département'
+    )
+    is_registered = models.BooleanField('Inscrit', default=False)
+    registered_user = models.OneToOneField(
+        'User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='authorized_employee', verbose_name='Utilisateur'
+    )
+    uploaded_at = models.DateTimeField('Chargé le', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Employé autorisé'
+        verbose_name_plural = 'Employés autorisés'
+        ordering = ['cuid']
+
+    def __str__(self):
+        status = self.get_employee_status_display()
+        dept = self.department.name if self.department else '—'
+        flag = 'inscrit' if self.is_registered else 'disponible'
+        return f"{self.cuid} · {status} · {dept} ({flag})"
 
 
 class AuditLog(models.Model):

@@ -1,13 +1,13 @@
 from django import forms
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Row, Column, Submit
-from .models import Project, Sprint, Epic, UserStory, Task
+from .models import Project, Sprint, Epic, UserStory, Task, Deliverable
 
 
 class ProjectForm(forms.ModelForm):
     class Meta:
         model = Project
-        fields = ['name', 'code', 'description', 'status', 'manager', 'team', 'department', 'start_date', 'end_date']
+        fields = ['name', 'code', 'description', 'status', 'responsable', 'team', 'department', 'start_date', 'end_date']
         widgets = {
             'start_date': forms.DateInput(attrs={'type': 'date'}),
             'end_date': forms.DateInput(attrs={'type': 'date'}),
@@ -18,18 +18,13 @@ class ProjectForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from apps.accounts.models import User
-        # Responsable : admin/manager du département IT
-        self.fields['manager'].queryset = User.objects.filter(
-            role__in=[User.ROLE_ADMIN, User.ROLE_MANAGER],
-            department__is_it_department=True,
-            is_active=True
-        )
-        # Équipe : uniquement les membres du département Informatique
-        self.fields['team'].queryset = User.objects.filter(
-            department__is_it_department=True,
-            is_active=True
-        ).order_by('last_name', 'first_name')
-        self.fields['team'].help_text = "Uniquement les membres du département Informatique."
+        it_members = User.objects.filter(department__is_it_department=True, is_active=True).order_by('last_name', 'first_name')
+        # Responsable d'exécution : tout membre IT actif
+        self.fields['responsable'].queryset = it_members
+        self.fields['responsable'].help_text = "Membre IT chargé de créer les tâches et suivre l'exécution."
+        # Équipe invitée : membres IT + éventuellement d'autres départements
+        self.fields['team'].queryset = User.objects.filter(is_active=True).order_by('department__name', 'last_name')
+        self.fields['team'].help_text = "Tous les membres invités pourront consulter le projet."
         self.helper = FormHelper()
         self.helper.add_input(Submit('submit', 'Enregistrer', css_class='btn btn-primary'))
 
@@ -93,3 +88,21 @@ class TaskForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.helper = FormHelper()
         self.helper.add_input(Submit('submit', 'Ajouter', css_class='btn btn-sm btn-primary'))
+
+
+class DeliverableForm(forms.ModelForm):
+    class Meta:
+        model = Deliverable
+        fields = ['title', 'description', 'sprint', 'due_date', 'status']
+        widgets = {
+            'due_date': forms.DateInput(attrs={'type': 'date'}),
+            'description': forms.Textarea(attrs={'rows': 2}),
+        }
+
+    def __init__(self, *args, project=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if project:
+            self.fields['sprint'].queryset = Sprint.objects.filter(project=project)
+        self.fields['sprint'].required = False
+        self.helper = FormHelper()
+        self.helper.add_input(Submit('submit', 'Enregistrer', css_class='btn btn-primary'))

@@ -21,7 +21,12 @@ class Project(models.Model):
     status = models.CharField('Statut', max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIF)
     manager = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
-        related_name='managed_projects', verbose_name='Responsable'
+        related_name='managed_projects', verbose_name='Chef de projet'
+    )
+    responsable = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='responsible_projects', verbose_name="Responsable d'exécution",
+        help_text='Membre IT chargé de créer les tâches et suivre l\'exécution.'
     )
     team = models.ManyToManyField(
         settings.AUTH_USER_MODEL, blank=True,
@@ -175,3 +180,39 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class Deliverable(models.Model):
+    """Livrable défini par le manager IT, rattaché à un projet et optionnellement un sprint."""
+
+    STATUS_ATTENTE    = 'ATTENTE'
+    STATUS_EN_COURS   = 'EN_COURS'
+    STATUS_LIVRE      = 'LIVRE'
+    STATUS_VALIDE     = 'VALIDE'
+
+    STATUS_CHOICES = [
+        (STATUS_ATTENTE,  'En attente'),
+        (STATUS_EN_COURS, 'En cours'),
+        (STATUS_LIVRE,    'Livré'),
+        (STATUS_VALIDE,   'Validé'),
+    ]
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='deliverables')
+    sprint = models.ForeignKey(
+        Sprint, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='deliverables', verbose_name='Sprint associé'
+    )
+    title = models.CharField('Titre', max_length=300)
+    description = models.TextField('Description', blank=True)
+    due_date = models.DateField('Date de livraison prévue', null=True, blank=True)
+    status = models.CharField('Statut', max_length=15, choices=STATUS_CHOICES, default=STATUS_ATTENTE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Livrable'
+        verbose_name_plural = 'Livrables'
+        ordering = ['due_date', 'title']
+
+    def __str__(self):
+        return f"[{self.project.code}] {self.title}"
