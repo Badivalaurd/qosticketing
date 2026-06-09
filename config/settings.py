@@ -106,6 +106,9 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
+from django.contrib.messages import constants as _msg
+MESSAGE_TAGS = {_msg.ERROR: 'danger'}
+
 LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'Africa/Abidjan'
 USE_I18N = True

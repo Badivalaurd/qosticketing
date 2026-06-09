@@ -42,6 +42,9 @@ def send_ticket_notification(ticket, event, recipient=None):
         for u in User.objects.filter(role=User.ROLE_ADMIN, is_active=True):
             recipients.add(u)
 
+    elif event == 'unassigned' and recipient:
+        recipients.add(recipient)
+
     elif event == 'mentioned' and recipient:
         recipients.add(recipient)
 
@@ -59,6 +62,7 @@ def send_ticket_notification(ticket, event, recipient=None):
     event_titles = {
         'created':        f"Nouveau ticket {ticket.number}",
         'assigned':       f"Ticket {ticket.number} affecté",
+        'unassigned':     f"Ticket {ticket.number} — désaffecté",
         'status_changed': f"Ticket {ticket.number} — statut modifié",
         'comment_added':  f"Commentaire sur {ticket.number}",
         'sla_exceeded':   f"SLA dépassé — {ticket.number}",
@@ -69,6 +73,7 @@ def send_ticket_notification(ticket, event, recipient=None):
     event_messages = {
         'created':        f"Le ticket «{ticket.title}» a été créé.",
         'assigned':       f"Le ticket «{ticket.title}» vous a été affecté.",
+        'unassigned':     f"Le ticket «{ticket.title}» ne vous est plus affecté.",
         'status_changed': f"Statut : «{ticket.get_status_display()}».",
         'comment_added':  f"Nouveau commentaire sur «{ticket.title}».",
         'sla_exceeded':   f"SLA dépassé sur «{ticket.title}».",
@@ -79,6 +84,7 @@ def send_ticket_notification(ticket, event, recipient=None):
     event_types = {
         'created':        Notification.TYPE_INFO,
         'assigned':       Notification.TYPE_INFO,
+        'unassigned':     Notification.TYPE_WARNING,
         'status_changed': Notification.TYPE_SUCCESS,
         'comment_added':  Notification.TYPE_INFO,
         'sla_exceeded':   Notification.TYPE_DANGER,
@@ -199,6 +205,7 @@ def _send_ticket_emails(ticket, event, recipients, url, titles, messages):
         template_map = {
             'created':        'ticket_created.html',
             'assigned':       'ticket_assigned.html',
+            'unassigned':     'ticket_generic.html',
             'status_changed': 'ticket_status_changed.html',
             'comment_added':  'ticket_comment.html',
             'sla_exceeded':   'sla_exceeded.html',

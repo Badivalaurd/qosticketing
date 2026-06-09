@@ -429,8 +429,11 @@ def ticket_assign(request, number):
                 old_value=str(old_assignee or ''),
                 new_value=str(ticket.assigned_to or ''),
             )
-            send_ticket_notification(ticket, 'assigned')
-            messages.success(request, f"Ticket affecté à {ticket.assigned_to} — SLA réinitialisé.")
+            if old_assignee and old_assignee != ticket.assigned_to:
+                send_ticket_notification(ticket, 'unassigned', recipient=old_assignee)
+            if ticket.assigned_to:
+                send_ticket_notification(ticket, 'assigned')
+            messages.success(request, f"Ticket affecté à {ticket.assigned_to} — SLA réinitialisé." if ticket.assigned_to else "Ticket désaffecté.")
     return redirect('tickets:detail', number=number)
 
 
