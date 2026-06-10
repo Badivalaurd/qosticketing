@@ -28,6 +28,19 @@
     {% endfor %}
     {% endif %}
 
+    {% if form.errors %}
+    <div class="alert alert-danger alert-dismissible py-2 small">
+      <i class="bi bi-exclamation-circle-fill me-1"></i>
+      {% for error in form.non_field_errors %}
+        {{ error }}
+      {% endfor %}
+      {% for field in form %}
+        {% for error in field.errors %}{{ error }}{% endfor %}
+      {% endfor %}
+      <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
     <form method="post" action="{% url 'account_login' %}">
       {% csrf_token %}
       <div class="mb-3">
