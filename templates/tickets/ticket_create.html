@@ -86,6 +86,22 @@
 
 {% block extra_js %}
 <script>
+(function() {
+  const input = document.getElementById('id_title');
+  if (!input) return;
+  const max = parseInt(input.getAttribute('maxlength') || '150', 10);
+  const counter = document.createElement('small');
+  counter.className = 'form-text text-muted';
+  function update() {
+    const len = input.value.length;
+    counter.textContent = len + ' / ' + max + ' caractères';
+    counter.className = 'form-text ' + (max - len < 20 ? 'text-danger' : 'text-muted');
+  }
+  input.insertAdjacentElement('afterend', counter);
+  input.addEventListener('input', update);
+  update();
+})();
+
 document.getElementById('id_category')?.addEventListener('change', function() {
   fetch(`{% url 'tickets:subcategories_ajax' %}?category_id=${this.value}`)
     .then(r => r.json())

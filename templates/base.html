@@ -80,7 +80,7 @@
       <a href="{% url 'accounts:audit_log' %}" class="nav-link">
         <i class="bi bi-shield-check"></i><span>Journal d'audit</span>
       </a>
-      <a href="/admin/" class="nav-link">
+      <a href="/omcm-backoffice/" class="nav-link">
         <i class="bi bi-gear"></i><span>Administration Django</span>
       </a>
     </div>
@@ -98,14 +98,14 @@
 
   <div class="sidebar-footer">
     <div class="user-info">
-      {% if user.avatar %}
-        <img src="{{ user.avatar.url }}" class="user-avatar" alt="">
+      {% if request.user.avatar %}
+        <img src="{{ request.user.avatar.url }}" class="user-avatar" alt="">
       {% else %}
-        <div class="user-avatar-placeholder">{{ user.first_name|first|default:user.username|first|upper }}</div>
+        <div class="user-avatar-placeholder">{{ request.user.first_name|first|default:request.user.username|first|upper }}</div>
       {% endif %}
       <div class="user-details">
-        <div class="user-name">{{ user.get_full_name|default:user.username }}</div>
-        <div class="user-role">{{ user.get_role_display }}</div>
+        <div class="user-name">{{ request.user.get_full_name|default:request.user.username }}</div>
+        <div class="user-role">{{ request.user.get_role_display }}</div>
       </div>
     </div>
   </div>
@@ -181,12 +181,12 @@
       <!-- User menu -->
       <div class="dropdown">
         <button class="btn btn-icon d-flex align-items-center gap-2" data-bs-toggle="dropdown">
-          {% if user.avatar %}
-            <img src="{{ user.avatar.url }}" class="rounded-circle" width="32" height="32">
+          {% if request.user.avatar %}
+            <img src="{{ request.user.avatar.url }}" class="rounded-circle" width="32" height="32">
           {% else %}
-            <div class="avatar-sm">{{ user.first_name|first|default:user.username|first|upper }}</div>
+            <div class="avatar-sm">{{ request.user.first_name|first|default:request.user.username|first|upper }}</div>
           {% endif %}
-          <span class="d-none d-md-inline small">{{ user.get_full_name|default:user.username }}</span>
+          <span class="d-none d-md-inline small">{{ request.user.get_full_name|default:request.user.username }}</span>
           <i class="bi bi-chevron-down small"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end shadow">

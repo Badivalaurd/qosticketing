@@ -143,8 +143,11 @@ class User(AbstractUser):
 
     @property
     def can_manage_projects(self):
-        """Chef de projet IT : crée projets, sprints, livrables."""
-        return self.is_it_member and (self.is_project_manager or self.role == self.ROLE_ADMIN)
+        """Chef de projet IT ou Manager IT : crée projets, sprints, livrables."""
+        return self.is_it_member and (
+            self.is_project_manager or
+            self.role in [self.ROLE_ADMIN, self.ROLE_MANAGER]
+        )
 
     @property
     def avatar_url(self):

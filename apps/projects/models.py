@@ -182,6 +182,23 @@ class Task(models.Model):
         return self.title
 
 
+class StoryComment(models.Model):
+    story = models.ForeignKey(UserStory, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='story_comments'
+    )
+    body = models.TextField('Commentaire')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Commentaire'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Commentaire de {self.author} sur {self.story}"
+
+
 class Deliverable(models.Model):
     """Livrable défini par le manager IT, rattaché à un projet et optionnellement un sprint."""
 

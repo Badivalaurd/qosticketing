@@ -63,6 +63,7 @@ class UserCreateView(LoginRequiredMixin, AdminRequiredMixin, CreateView):
     model = User
     form_class = UserAdminForm
     template_name = 'accounts/user_form.html'
+    context_object_name = 'edited_user'
     success_url = reverse_lazy('accounts:user_list')
 
     def form_valid(self, form):
@@ -74,6 +75,7 @@ class UserUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
     model = User
     form_class = UserAdminForm
     template_name = 'accounts/user_form.html'
+    context_object_name = 'edited_user'
     success_url = reverse_lazy('accounts:user_list')
 
     def form_valid(self, form):

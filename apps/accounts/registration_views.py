@@ -331,6 +331,12 @@ def _create_pending_user(cuid, email, first_name, last_name, password):
 
 
 def _send_confirmation_code(user, code):
+    # Toujours afficher le code en clair dans le terminal (dev + prod)
+    logger.info(
+        "\033[33m[CODE CONFIRMATION]\033[0m CUID=%-12s  CODE=\033[1;32m%s\033[0m  → %s",
+        user.username, code, user.email,
+        extra={'user': user.username},
+    )
     try:
         text_body = (
             f"Bonjour {user.first_name},\n\n"
@@ -526,6 +532,11 @@ def password_reset_change(request):
 
 def _send_reset_code(user, code):
     """Envoie le code de réinitialisation par email (HTML + texte brut)."""
+    logger.info(
+        "\033[35m[CODE RESET MDP]\033[0m   CUID=%-12s  CODE=\033[1;32m%s\033[0m  → %s",
+        user.username, code, user.email,
+        extra={'user': user.username},
+    )
     try:
         text_body = (
             f"Bonjour {user.first_name or user.username},\n\n"

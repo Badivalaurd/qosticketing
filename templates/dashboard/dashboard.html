@@ -140,6 +140,54 @@
     </div>
   </div>
 
+  <!-- ── Graphes agent/admin ── -->
+  {% if show_agent_charts %}
+  <!-- Envoyées vs Traitées -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-arrow-left-right me-2 text-orange"></i>Demandes envoyées vs traitées (14 jours)</span>
+        <div class="d-flex gap-3 small">
+          <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#F16E00" class="me-1"></span>Envoyées</span>
+          <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#198754" class="me-1"></span>Traitées</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <canvas id="processingChart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLA Performance -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-shield-check me-2 text-orange"></i>Conformité SLA</div>
+      <div class="card-body">
+        <canvas id="slaChart" height="200"></canvas>
+        <div class="d-flex justify-content-around mt-3 small text-center">
+          <div>
+            <div class="fw-bold fs-5 text-success">{{ sla_in }}</div>
+            <div class="text-muted">Dans les SLA</div>
+          </div>
+          <div>
+            <div class="fw-bold fs-5 text-danger">{{ sla_out_count }}</div>
+            <div class="text-muted">Hors SLA</div>
+          </div>
+          {% if sla_in or sla_out_count %}
+          <div>
+            <div class="fw-bold fs-5 text-primary">
+              {% widthratio sla_in sla_in|add:sla_out_count 100 %}%
+            </div>
+            <div class="text-muted">Taux conformité</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  <!-- ── fin graphes agent/admin ── -->
+
   <!-- Recent tickets -->
   <div class="col-12">
     <div class="card">
@@ -239,5 +287,55 @@ new Chart(document.getElementById('categoryChart'), {
     scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
   }
 });
+
+{% if show_agent_charts %}
+// Envoyées vs Traitées
+new Chart(document.getElementById('processingChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ trend_labels_json|safe }},
+    datasets: [
+      {
+        label: 'Envoyées',
+        data: {{ trend_data_json|safe }},
+        backgroundColor: 'rgba(241,110,0,0.75)',
+        borderRadius: 4,
+      },
+      {
+        label: 'Traitées',
+        data: {{ trend_resolved_json|safe }},
+        backgroundColor: 'rgba(25,135,84,0.75)',
+        borderRadius: 4,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+  }
+});
+
+// SLA Conformité
+const slaData = {{ sla_perf_json|safe }};
+new Chart(document.getElementById('slaChart'), {
+  type: 'doughnut',
+  data: {
+    labels: Object.keys(slaData),
+    datasets: [{
+      data: Object.values(slaData),
+      backgroundColor: ['#198754', '#dc3545'],
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '60%',
+    plugins: {
+      legend: { position: 'bottom', labels: { font: { size: 12 } } }
+    }
+  }
+});
+{% endif %}
 </script>
 {% endblock %}

@@ -1,0 +1,274 @@
+{% extends 'base.html' %}
+{% load project_tags %}
+{% block title %}Backlog — {{ project.name }}{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
+<li class="breadcrumb-item"><a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a></li>
+<li class="breadcrumb-item active">Backlog</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.backlog-section { border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+.backlog-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: #f8f9fa; font-weight: 600; font-size: .9rem;
+  border-bottom: 1px solid #dee2e6; cursor: pointer; user-select: none;
+}
+.backlog-section-header:hover { background: #f0f4f8; }
+.backlog-section-header .badge { font-size: .75rem; }
+.story-row {
+  display: flex; align-items: center; padding: 8px 16px;
+  border-bottom: 1px solid #f0f0f0; gap: 10px; background: #fff;
+}
+.story-row:last-child { border-bottom: none; }
+.story-row:hover { background: #fafbfc; }
+.story-row .story-title { flex: 1; font-size: .875rem; color: #212529; text-decoration: none; }
+.story-row .story-title:hover { color: #F16E00; }
+.story-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.avatar-xs {
+  width: 24px; height: 24px; border-radius: 50%; background: #6c757d;
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 600; flex-shrink: 0;
+}
+.sprint-header-actif { background: #d1e7dd; }
+.sprint-header-planifie { background: #cfe2ff; }
+.priority-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-list-task me-2 text-orange"></i>Backlog — Planification des sprints</h1>
+    <small class="text-muted">{{ project.name }}</small>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_execute %}
+    <a href="{% url 'projects:story_create' project.pk %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus me-1"></i>Nouvelle story
+    </a>
+    {% endif %}
+    {% if can_manage %}
+    <a href="{% url 'projects:sprint_create' project.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-lightning me-1"></i>Nouveau sprint
+    </a>
+    {% endif %}
+    <a href="{% url 'projects:kanban' project.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-kanban me-1"></i>Kanban
+    </a>
+    <a href="{% url 'projects:detail' project.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Projet
+    </a>
+  </div>
+</div>
+
+{% if not sprints and not backlog_stories %}
+<div class="text-center text-muted py-5">
+  <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+  <p class="mb-3">Aucune story ni sprint pour l'instant.</p>
+  {% if can_execute %}
+  <a href="{% url 'projects:story_create' project.pk %}" class="btn btn-primary me-2">
+    <i class="bi bi-plus me-1"></i>Créer une story
+  </a>
+  {% endif %}
+  {% if can_manage %}
+  <a href="{% url 'projects:sprint_create' project.pk %}" class="btn btn-outline-secondary">
+    <i class="bi bi-lightning me-1"></i>Créer un sprint
+  </a>
+  {% endif %}
+</div>
+{% else %}
+
+<!-- Sprints actifs/planifiés -->
+{% for sprint in sprints %}
+<div class="backlog-section">
+  <div class="backlog-section-header {% if sprint.status == 'ACTIF' %}sprint-header-actif{% else %}sprint-header-planifie{% endif %}"
+       onclick="toggleSection('sprint-{{ sprint.pk }}')">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-chevron-down" id="icon-sprint-{{ sprint.pk }}"></i>
+      <span>
+        <i class="bi bi-lightning-fill me-1 text-warning"></i>
+        {{ sprint.name }}
+        <span class="badge {% if sprint.status == 'ACTIF' %}bg-success{% else %}bg-info text-dark{% endif %} ms-2">
+          {{ sprint.get_status_display }}
+        </span>
+      </span>
+      {% if sprint.start_date or sprint.end_date %}
+      <small class="text-muted fw-normal">{{ sprint.start_date|date:"d/m/Y"|default:"?" }} → {{ sprint.end_date|date:"d/m/Y"|default:"?" }}</small>
+      {% endif %}
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-secondary">{{ sprint_stories|get_item:sprint.pk|length }} stories</span>
+      {% if can_manage %}
+      <a href="{% url 'projects:sprint_update' project.pk sprint.pk %}" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.75rem" onclick="event.stopPropagation()">
+        <i class="bi bi-pencil"></i>
+      </a>
+      {% if sprint.status == 'PLANIFIE' %}
+      <form method="post" action="{% url 'projects:sprint_start' project.pk sprint.pk %}" onclick="event.stopPropagation()">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-xs btn-success py-0 px-2" style="font-size:.75rem">
+          <i class="bi bi-play-fill me-1"></i>Démarrer
+        </button>
+      </form>
+      {% elif sprint.status == 'ACTIF' %}
+      <form method="post" action="{% url 'projects:sprint_complete' project.pk sprint.pk %}"
+            onclick="event.stopPropagation()"
+            onsubmit="return confirm('Clôturer ce sprint ? Les stories non terminées retournent au backlog.')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-xs btn-warning py-0 px-2" style="font-size:.75rem">
+          <i class="bi bi-flag-fill me-1"></i>Clôturer
+        </button>
+      </form>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="sprint-{{ sprint.pk }}">
+    {% with stories=sprint_stories|get_item:sprint.pk %}
+    {% if stories %}
+    {% for story in stories %}
+    <div class="story-row">
+      <span class="priority-dot bg-{{ PRIORITY_COLORS|get_item:story.priority }}" title="{{ PRIORITY_LABELS|get_item:story.priority }}"></span>
+      <a href="{% url 'projects:story_detail' project.pk story.pk %}" class="story-title">{{ story.title }}</a>
+      <div class="story-meta">
+        {% if story.epic %}
+        <span class="badge" style="background:{{ story.epic.color }};font-size:.7rem">{{ story.epic.name }}</span>
+        {% endif %}
+        <span class="badge bg-secondary" style="font-size:.7rem">{{ story.get_status_display }}</span>
+        {% if story.story_points %}
+        <span class="badge bg-light text-dark border" style="font-size:.7rem">{{ story.story_points }}pts</span>
+        {% endif %}
+        {% if story.assignee %}
+        <div class="avatar-xs" title="{{ story.assignee.get_full_name }}">
+          {{ story.assignee.first_name|first|default:story.assignee.username|first|upper }}
+        </div>
+        {% endif %}
+        {% if can_execute %}
+        <form method="post" action="{% url 'projects:story_move_sprint' project.pk story.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="sprint_id" value="">
+          <button type="submit" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.7rem"
+                  title="Retirer du sprint → Backlog">
+            <i class="bi bi-arrow-bar-left"></i>
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="text-center text-muted py-3 small">
+      <i class="bi bi-inbox me-1"></i>Aucune story dans ce sprint.
+      {% if can_execute %}
+      <a href="{% url 'projects:story_create' project.pk %}?sprint={{ sprint.pk }}" class="ms-2">+ Ajouter</a>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    {% if can_execute %}
+    <div class="px-3 py-2 border-top bg-light">
+      <a href="{% url 'projects:story_create' project.pk %}?sprint={{ sprint.pk }}" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-plus me-1"></i>Ajouter une story au sprint
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<!-- Backlog (stories sans sprint) -->
+<div class="backlog-section">
+  <div class="backlog-section-header" onclick="toggleSection('backlog-stories')">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-chevron-down" id="icon-backlog-stories"></i>
+      <span><i class="bi bi-inbox me-1"></i>Backlog</span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-secondary">{{ backlog_stories|length }} stories</span>
+      {% if can_execute %}
+      <a href="{% url 'projects:story_create' project.pk %}" class="btn btn-xs btn-primary py-0 px-2" style="font-size:.75rem" onclick="event.stopPropagation()">
+        <i class="bi bi-plus"></i> Créer
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="backlog-stories">
+    {% for story in backlog_stories %}
+    <div class="story-row">
+      <span class="priority-dot bg-{{ PRIORITY_COLORS|get_item:story.priority }}" title="{{ PRIORITY_LABELS|get_item:story.priority }}"></span>
+      <a href="{% url 'projects:story_detail' project.pk story.pk %}" class="story-title">{{ story.title }}</a>
+      <div class="story-meta">
+        {% if story.epic %}
+        <span class="badge" style="background:{{ story.epic.color }};font-size:.7rem">{{ story.epic.name }}</span>
+        {% endif %}
+        {% if story.story_points %}
+        <span class="badge bg-light text-dark border" style="font-size:.7rem">{{ story.story_points }}pts</span>
+        {% endif %}
+        {% if story.assignee %}
+        <div class="avatar-xs" title="{{ story.assignee.get_full_name }}">
+          {{ story.assignee.first_name|first|default:story.assignee.username|first|upper }}
+        </div>
+        {% endif %}
+
+        {% if can_execute and sprints %}
+        <div class="dropdown">
+          <button class="btn btn-xs btn-outline-primary py-0 px-2 dropdown-toggle" style="font-size:.7rem" data-bs-toggle="dropdown">
+            <i class="bi bi-arrow-bar-right me-1"></i>Sprint
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size:.8rem;min-width:180px">
+            <li><h6 class="dropdown-header">Déplacer vers :</h6></li>
+            {% for sprint in sprints %}
+            <li>
+              <form method="post" action="{% url 'projects:story_move_sprint' project.pk story.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="sprint_id" value="{{ sprint.pk }}">
+                <button type="submit" class="dropdown-item">
+                  <i class="bi bi-lightning-fill text-warning me-1"></i>{{ sprint.name }}
+                  <span class="badge bg-{% if sprint.status == 'ACTIF' %}success{% else %}info text-dark{% endif %} ms-1" style="font-size:.65rem">{{ sprint.get_status_display }}</span>
+                </button>
+              </form>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-4 small">
+      <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+      Le backlog est vide.
+      {% if can_execute %}
+      <div class="mt-2">
+        <a href="{% url 'projects:story_create' project.pk %}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-plus me-1"></i>Créer une story
+        </a>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  const icon = document.getElementById('icon-' + id);
+  if (!el) return;
+  el.classList.toggle('d-none');
+  if (icon) {
+    icon.classList.toggle('bi-chevron-down');
+    icon.classList.toggle('bi-chevron-right');
+  }
+}
+</script>
+{% endblock %}
