@@ -13,6 +13,5 @@ exec gunicorn config.wsgi:application \
     --workers 1 \
     --worker-class sync \
     --timeout 120 \
-    --preload \
     --access-logfile - \
     --error-logfile -

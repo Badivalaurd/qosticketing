@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
 from django.shortcuts import redirect
+from django.http import HttpResponse
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from apps.dashboard import views as views_home
 from apps.accounts.permissions import IsAdminRole
@@ -14,7 +15,12 @@ def _dashboard_redirect(request, *args, **kwargs):
     return redirect('dashboard:home')
 
 
+def _health(request):
+    return HttpResponse('ok', content_type='text/plain')
+
+
 urlpatterns = [
+    path('health/', _health, name='health'),
     path('omcm-backoffice/', admin.site.urls),
     # Intercepter avant allauth : signup → flux CUID, reset → reset par CUID
     path('accounts/signup/', RedirectView.as_view(url='/accounts/register/', permanent=False)),

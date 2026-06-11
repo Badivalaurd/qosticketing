@@ -204,9 +204,10 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'QoS Ticketing <noreply.qosomcm@gmail.com>')
 NOTIFICATION_EMAIL = os.getenv('NOTIFICATION_EMAIL', '')
 
-# Celery
+# Celery — si pas de Redis, les tâches s'exécutent en synchrone (pas de crash)
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_TASK_ALWAYS_EAGER = not bool(os.getenv('CELERY_BROKER_URL'))
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
