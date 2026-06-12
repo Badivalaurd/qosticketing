@@ -1,36 +1,186 @@
 {% extends 'base.html' %}
-{% block title %}{{ sprint.name }}{% endblock %}
+{% load project_tags %}
+{% block title %}{{ sprint.name }} — {{ project.name }}{% endblock %}
 {% block breadcrumb %}
 <li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
 <li class="breadcrumb-item"><a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a></li>
 <li class="breadcrumb-item active">{{ sprint.name }}</li>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+.story-list-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #f0f0f0; }
+.story-list-row:hover { background: #fafbfc; }
+.story-list-row:last-child { border-bottom: none; }
+.story-title-link { flex: 1; font-size: .875rem; font-weight: 500; color: #212529; text-decoration: none; }
+.story-title-link:hover { color: #F16E00; }
+.status-chip {
+  padding: 2px 10px; border-radius: 12px; font-size: .73rem; font-weight: 600;
+  cursor: pointer; display: inline-block; white-space: nowrap;
+}
+.status-BACKLOG .status-chip { background: #6c757d; color:#fff; }
+.status-TODO .status-chip { background: #0d6efd; color:#fff; }
+.status-IN_PROGRESS .status-chip { background: #fd7e14; color:#fff; }
+.status-IN_TEST .status-chip { background: #6f42c1; color:#fff; }
+.status-DONE .status-chip { background: #198754; color:#fff; }
+.progress-bar-sprint { height: 8px; border-radius: 4px; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
-  <h1><i class="bi bi-lightning me-2 text-orange"></i>{{ sprint.name }}</h1>
-  <span class="badge bg-success">{{ sprint.get_status_display }}</span>
+  <div>
+    <h1><i class="bi bi-lightning-fill me-2 text-orange"></i>{{ sprint.name }}</h1>
+    <div class="d-flex align-items-center gap-2 mt-1">
+      <span class="badge {% if sprint.status == 'ACTIF' %}bg-success{% elif sprint.status == 'TERMINE' %}bg-secondary{% else %}bg-info text-dark{% endif %}">
+        {{ sprint.get_status_display }}
+      </span>
+      {% if sprint.start_date or sprint.end_date %}
+      <small class="text-muted"><i class="bi bi-calendar3 me-1"></i>{{ sprint.start_date|date:"d/m/Y"|default:"?" }} → {{ sprint.end_date|date:"d/m/Y"|default:"?" }}</small>
+      {% endif %}
+    </div>
+    {% if sprint.goal %}
+    <p class="text-muted small mt-1 mb-0"><i class="bi bi-flag me-1"></i>{{ sprint.goal }}</p>
+    {% endif %}
+  </div>
+
+  <div class="d-flex gap-2 flex-wrap">
+    {% if can_manage %}
+    <a href="{% url 'projects:sprint_update' project.pk sprint.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-pencil me-1"></i>Modifier
+    </a>
+    {% if sprint.status == 'PLANIFIE' %}
+    <form method="post" action="{% url 'projects:sprint_start' project.pk sprint.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-success btn-sm">
+        <i class="bi bi-play-fill me-1"></i>Démarrer
+      </button>
+    </form>
+    {% elif sprint.status == 'ACTIF' %}
+    <form method="post" action="{% url 'projects:sprint_complete' project.pk sprint.pk %}"
+          onsubmit="return confirm('Clôturer ce sprint ? Les stories non terminées seront renvoyées au backlog.')">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-warning btn-sm">
+        <i class="bi bi-flag-fill me-1"></i>Clôturer le sprint
+      </button>
+    </form>
+    {% endif %}
+    {% if sprint.status == 'PLANIFIE' %}
+    <form method="post" action="{% url 'projects:sprint_delete' project.pk sprint.pk %}"
+          onsubmit="return confirm('Supprimer ce sprint ? Les stories reviendront au backlog.')">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-danger btn-sm">
+        <i class="bi bi-trash me-1"></i>Supprimer
+      </button>
+    </form>
+    {% endif %}
+    {% endif %}
+    {% if can_execute %}
+    <a href="{% url 'projects:story_create' project.pk %}?sprint={{ sprint.pk }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus me-1"></i>Nouvelle story
+    </a>
+    {% endif %}
+    <a href="{% url 'projects:kanban' project.pk %}?sprint={{ sprint.pk }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-kanban me-1"></i>Kanban
+    </a>
+    <a href="{% url 'projects:detail' project.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Projet
+    </a>
+  </div>
 </div>
 
+<!-- Progress -->
+<div class="card mb-3">
+  <div class="card-body py-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <strong class="small">Avancement</strong>
+        <span class="text-muted small ms-2">{{ done }} / {{ total }} stories terminées</span>
+      </div>
+      <strong class="text-{{ progress|yesno:'success,secondary' }}">{{ progress }}%</strong>
+    </div>
+    <div class="progress progress-bar-sprint">
+      <div class="progress-bar bg-success" role="progressbar" style="width:{{ progress }}%"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Story list -->
 <div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-list-task me-2"></i><strong>Stories ({{ total }})</strong></span>
+    {% if can_execute %}
+    <a href="{% url 'projects:story_create' project.pk %}?sprint={{ sprint.pk }}" class="btn btn-sm btn-primary">
+      <i class="bi bi-plus me-1"></i>Ajouter
+    </a>
+    {% endif %}
+  </div>
   <div class="card-body p-0">
-    <table class="table table-hover mb-0 align-middle">
-      <thead class="table-light">
-        <tr><th>Titre</th><th>Statut</th><th>Assigné</th><th>Points</th></tr>
-      </thead>
-      <tbody>
-        {% for story in stories %}
-        <tr>
-          <td><a href="{% url 'projects:story_detail' project.pk story.pk %}" class="text-decoration-none">{{ story.title }}</a></td>
-          <td><span class="badge bg-secondary">{{ story.get_status_display }}</span></td>
-          <td class="small">{{ story.assignee.get_full_name|default:"—" }}</td>
-          <td class="small">{{ story.story_points }}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="4" class="text-center text-muted py-4">Aucune story</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    {% for story in stories %}
+    <div class="story-list-row status-{{ story.status }}">
+      <!-- Priority dot -->
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--bs-{{ PRIORITY_COLORS|get_item:story.priority }});flex-shrink:0"
+           title="{{ PRIORITY_LABELS|get_item:story.priority }}"></div>
+
+      <a href="{% url 'projects:story_detail' project.pk story.pk %}" class="story-title-link">
+        {{ story.title }}
+      </a>
+
+      <div class="d-flex align-items-center gap-2 flex-shrink-0">
+        {% if story.epic %}
+        <span class="badge" style="background:{{ story.epic.color }};font-size:.7rem">{{ story.epic.name }}</span>
+        {% endif %}
+
+        <!-- Status dropdown -->
+        <div class="dropdown">
+          <span class="status-chip dropdown-toggle" data-bs-toggle="dropdown">
+            {{ story.get_status_display }}
+          </span>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size:.8rem;min-width:150px">
+            {% for val, label in story.STATUS_CHOICES %}
+            <li>
+              <form method="post" action="{% url 'projects:update_story_status' story.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="{{ val }}">
+                <button type="submit" class="dropdown-item {% if story.status == val %}fw-bold{% endif %}">{{ label }}</button>
+              </form>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        {% if story.story_points %}
+        <span class="badge bg-light text-dark border" style="font-size:.7rem">{{ story.story_points }}pts</span>
+        {% endif %}
+
+        {% if story.assignee %}
+        <div style="width:24px;height:24px;border-radius:50%;background:#6c757d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:600"
+             title="{{ story.assignee.get_full_name }}">
+          {{ story.assignee.first_name|first|default:story.assignee.username|first|upper }}
+        </div>
+        {% endif %}
+
+        {% if can_execute %}
+        <a href="{% url 'projects:story_update' project.pk story.pk %}" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.7rem">
+          <i class="bi bi-pencil"></i>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+      <p class="mb-2">Aucune story dans ce sprint.</p>
+      {% if can_execute %}
+      <a href="{% url 'projects:story_create' project.pk %}?sprint={{ sprint.pk }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus me-1"></i>Créer une story
+      </a>
+      <a href="{% url 'projects:backlog' project.pk %}" class="btn btn-outline-secondary btn-sm ms-2">
+        <i class="bi bi-list-task me-1"></i>Depuis le backlog
+      </a>
+      {% endif %}
+    </div>
+    {% endfor %}
   </div>
 </div>
 {% endblock %}

@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt && python manage.py collectstatic --no-input"
+
+[deploy]
+startCommand = "python manage.py migrate --no-input && (python manage.py init_prod || echo 'init_prod skipped') && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --worker-class sync --timeout 120 --access-logfile - --error-logfile -"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10

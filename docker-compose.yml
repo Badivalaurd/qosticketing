@@ -1,8 +1,11 @@
 version: '3.9'
 
 services:
+
+  # ── Base de données PostgreSQL ─────────────────────────────────────────────
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: qos_ticketing
       POSTGRES_USER: postgres
@@ -17,14 +20,39 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Adminer — interface web pour explorer la BD ───────────────────────────
+  # Accès : http://localhost:8080
+  #   Système    : PostgreSQL
+  #   Serveur    : db
+  #   Utilisateur: postgres
+  #   Mot de passe: postgres_password
+  #   Base       : qos_ticketing
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+      ADMINER_DESIGN: pepa-linha
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── Redis (Celery broker) ─────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"
 
+  # ── Application Django (dev) ──────────────────────────────────────────────
   web:
     build: .
-    command: python manage.py runserver 0.0.0.0:8000
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py init_prod &&
+             python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
       - media_data:/app/media
@@ -32,20 +60,22 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      - DB_ENGINE=django.db.backends.postgresql
-      - DB_NAME=qos_ticketing
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres_password
-      - DB_HOST=db
-      - DB_PORT=5432
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - REDIS_URL=redis://redis:6379/0
+      DB_ENGINE: django.db.backends.postgresql
+      DB_NAME: qos_ticketing
+      DB_USER: postgres
+      DB_PASSWORD: postgres_password
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_SSLMODE: disable
+      CELERY_BROKER_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
 
+  # ── Celery worker ─────────────────────────────────────────────────────────
   celery:
     build: .
     command: celery -A config worker -l info
@@ -53,12 +83,14 @@ services:
       - .:/app
     env_file: .env
     environment:
-      - DB_ENGINE=django.db.backends.postgresql
-      - DB_NAME=qos_ticketing
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres_password
-      - DB_HOST=db
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      DB_ENGINE: django.db.backends.postgresql
+      DB_NAME: qos_ticketing
+      DB_USER: postgres
+      DB_PASSWORD: postgres_password
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_SSLMODE: disable
+      CELERY_BROKER_URL: redis://redis:6379/0
     depends_on:
       - db
       - redis

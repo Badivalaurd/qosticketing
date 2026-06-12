@@ -1,8 +1,22 @@
 {% extends 'base.html' %}
+{% load project_tags %}
 {% block title %}{{ project.name }}{% endblock %}
 {% block breadcrumb %}
 <li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
 <li class="breadcrumb-item active">{{ project.name }}</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.sprint-card { border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+.sprint-card-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #f8f9fa; }
+.epic-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: .78rem; color: #fff; margin: 3px; }
+.backlog-row { display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-bottom: 1px solid #f0f0f0; }
+.backlog-row:last-child { border-bottom: none; }
+.backlog-row:hover { background: #fafbfc; }
+.backlog-title { flex: 1; font-size: .83rem; text-decoration: none; color: #212529; }
+.backlog-title:hover { color: #F16E00; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -16,24 +30,27 @@
       {% endif %}
     </p>
   </div>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 flex-wrap">
     {% if is_it_member %}
-    <a href="{% url 'projects:kanban' project.pk %}" class="btn btn-primary">
+    <a href="{% url 'projects:backlog' project.pk %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-list-task me-1"></i>Backlog
+    </a>
+    <a href="{% url 'projects:kanban' project.pk %}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-kanban me-1"></i>Kanban
     </a>
-    <a href="{% url 'projects:gantt' project.pk %}" class="btn btn-outline-secondary">
+    <a href="{% url 'projects:gantt' project.pk %}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-bar-chart-steps me-1"></i>Gantt
     </a>
     {% endif %}
-    {% if can_edit %}
-    <a href="{% url 'projects:update' project.pk %}" class="btn btn-outline-secondary">
+    {% if can_manage %}
+    <a href="{% url 'projects:update' project.pk %}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-pencil me-1"></i>Modifier
     </a>
     {% endif %}
   </div>
 </div>
 
-<!-- Stats (IT members seulement) -->
+<!-- Stats -->
 {% if is_it_member %}
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
@@ -65,7 +82,7 @@
 
 <div class="row g-3">
 
-  <!-- Vue membre d'équipe (non IT) : mes tâches dans ce projet -->
+  <!-- Vue membre non-IT : mes tâches -->
   {% if is_team_member and not is_it_member %}
   <div class="col-12">
     <div class="card">
@@ -79,12 +96,8 @@
         <table class="table table-hover mb-0 align-middle">
           <thead class="table-light">
             <tr>
-              <th>Tâche</th>
-              <th>Story</th>
-              <th>Statut</th>
-              <th>Heures estimées</th>
-              <th>Heures réelles</th>
-              <th>Échéance</th>
+              <th>Tâche</th><th>Story</th><th>Statut</th>
+              <th>Heures est.</th><th>Heures réelles</th><th>Échéance</th>
             </tr>
           </thead>
           <tbody>
@@ -93,26 +106,20 @@
               <td class="fw-600 small">{{ task.title }}</td>
               <td class="small text-muted">{{ task.story.title|truncatechars:40 }}</td>
               <td>
-                <span class="badge
-                  {% if task.status == 'DONE' %}bg-success
-                  {% elif task.status == 'IN_PROGRESS' %}bg-primary
-                  {% else %}bg-secondary{% endif %}">
+                <span class="badge {% if task.status == 'DONE' %}bg-success{% elif task.status == 'IN_PROGRESS' %}bg-primary{% else %}bg-secondary{% endif %}">
                   {{ task.get_status_display }}
                 </span>
               </td>
               <td class="small">{{ task.estimated_hours }}h</td>
               <td class="small">{{ task.actual_hours }}h</td>
-              <td class="small {% if task.due_date and task.due_date < today %}text-danger{% endif %}">
-                {{ task.due_date|date:"d/m/Y"|default:"—" }}
-              </td>
+              <td class="small">{{ task.due_date|date:"d/m/Y"|default:"—" }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
         {% else %}
         <div class="text-center text-muted py-4">
-          <i class="bi bi-inbox fs-2 d-block mb-2"></i>
-          Aucune tâche ne vous est assignée dans ce projet.
+          <i class="bi bi-inbox fs-2 d-block mb-2"></i>Aucune tâche ne vous est assignée.
         </div>
         {% endif %}
       </div>
@@ -120,71 +127,220 @@
   </div>
   {% endif %}
 
-  <!-- Vue complète (membres IT) -->
+  <!-- Vue IT complète -->
   {% if is_it_member %}
-  <!-- Sprints -->
+
+  <!-- Col gauche : Sprints + Epics -->
   <div class="col-lg-8">
-    <div class="card">
+
+    <!-- Sprints -->
+    <div class="card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-lightning me-2"></i>Sprints ({{ sprints.count }})</span>
-      </div>
-      <div class="card-body p-0">
-        {% for sprint in sprints %}
-        <a href="{% url 'projects:sprint_detail' project.pk sprint.pk %}"
-           class="list-group-item list-group-item-action px-3 py-2 border-bottom">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong class="small">{{ sprint.name }}</strong>
-              {% if sprint.goal %}
-              <div class="small text-muted">{{ sprint.goal|truncatechars:60 }}</div>
-              {% endif %}
-              <div class="small text-muted">
-                {{ sprint.start_date|default:"?" }} → {{ sprint.end_date|default:"?" }}
-              </div>
-            </div>
-            <span class="badge
-              {% if sprint.status == 'ACTIF' %}bg-success
-              {% elif sprint.status == 'TERMINE' %}bg-secondary
-              {% else %}bg-info text-dark{% endif %}">
-              {{ sprint.get_status_display }}
-            </span>
-          </div>
+        <span><i class="bi bi-lightning me-2"></i><strong>Sprints ({{ sprints.count }})</strong></span>
+        {% if can_manage %}
+        <a href="{% url 'projects:sprint_create' project.pk %}" class="btn btn-sm btn-primary">
+          <i class="bi bi-plus me-1"></i>Nouveau sprint
         </a>
+        {% endif %}
+      </div>
+      <div class="card-body p-2">
+        {% for sprint in sprints %}
+        <div class="sprint-card">
+          <div class="sprint-card-header">
+            <div>
+              <a href="{% url 'projects:sprint_detail' project.pk sprint.pk %}" class="fw-600 text-decoration-none small">
+                {{ sprint.name }}
+              </a>
+              <span class="badge {% if sprint.status == 'ACTIF' %}bg-success{% elif sprint.status == 'TERMINE' %}bg-secondary{% else %}bg-info text-dark{% endif %} ms-2">
+                {{ sprint.get_status_display }}
+              </span>
+              {% if sprint.start_date or sprint.end_date %}
+              <div class="small text-muted mt-1">
+                <i class="bi bi-calendar3 me-1"></i>{{ sprint.start_date|date:"d/m/Y"|default:"?" }} → {{ sprint.end_date|date:"d/m/Y"|default:"?" }}
+              </div>
+              {% endif %}
+            </div>
+            <div class="d-flex gap-1 align-items-center">
+              {% if sprint.status == 'PLANIFIE' and can_manage %}
+              <form method="post" action="{% url 'projects:sprint_start' project.pk sprint.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-xs btn-success py-0 px-2" style="font-size:.75rem">
+                  <i class="bi bi-play-fill me-1"></i>Démarrer
+                </button>
+              </form>
+              {% elif sprint.status == 'ACTIF' and can_manage %}
+              <form method="post" action="{% url 'projects:sprint_complete' project.pk sprint.pk %}"
+                    onsubmit="return confirm('Clôturer ce sprint ?')">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-xs btn-warning py-0 px-2" style="font-size:.75rem">
+                  <i class="bi bi-flag-fill me-1"></i>Clôturer
+                </button>
+              </form>
+              {% endif %}
+              <a href="{% url 'projects:kanban' project.pk %}?sprint={{ sprint.pk }}"
+                 class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.75rem" title="Kanban">
+                <i class="bi bi-kanban"></i>
+              </a>
+              {% if can_manage %}
+              <a href="{% url 'projects:sprint_update' project.pk sprint.pk %}"
+                 class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.75rem" title="Modifier">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% endif %}
+            </div>
+          </div>
+          {% with story_count=sprint.user_stories.count done_count=sprint.user_stories.filter.all %}
+          {% if story_count %}
+          <div class="px-3 py-1 border-top bg-white" style="font-size:.75rem">
+            <span class="text-muted">{{ story_count }} story(ies)</span>
+            <span class="ms-2 text-success">{{ sprint.user_stories.filter.all|length }} terminée(s)</span>
+          </div>
+          {% endif %}
+          {% endwith %}
+        </div>
         {% empty %}
-        <div class="text-center text-muted py-4 small">Aucun sprint créé</div>
+        <div class="text-center text-muted py-4 small">
+          <i class="bi bi-lightning d-block fs-3 mb-2"></i>Aucun sprint créé.
+          {% if can_manage %}
+          <div class="mt-2">
+            <a href="{% url 'projects:sprint_create' project.pk %}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-plus me-1"></i>Créer un sprint
+            </a>
+          </div>
+          {% endif %}
+        </div>
         {% endfor %}
       </div>
     </div>
+
+    <!-- Epics -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-collection me-2"></i><strong>Epics ({{ epics.count }})</strong></span>
+        {% if can_execute %}
+        <a href="{% url 'projects:epic_create' project.pk %}" class="btn btn-sm btn-primary">
+          <i class="bi bi-plus me-1"></i>Nouvel Epic
+        </a>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if epics %}
+        <div class="d-flex flex-wrap">
+          {% for epic in epics %}
+          <a href="{% url 'projects:epic_update' project.pk epic.pk %}"
+             class="epic-chip text-decoration-none"
+             style="background:{{ epic.color }}"
+             title="{{ epic.description|truncatechars:80 }}">
+            <i class="bi bi-collection-fill"></i>{{ epic.name }}
+            <span class="badge bg-white text-dark ms-1" style="font-size:.65rem">{{ epic.user_stories.count }}</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-3 small">
+          <i class="bi bi-collection d-block fs-3 mb-2"></i>Aucun epic.
+          {% if can_execute %}
+          <a href="{% url 'projects:epic_create' project.pk %}" class="btn btn-sm btn-outline-primary mt-1">
+            <i class="bi bi-plus me-1"></i>Créer un epic
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
   </div>
 
-  <!-- Backlog + Équipe -->
+  <!-- Col droite : Backlog + Équipe + Livrables -->
   <div class="col-lg-4">
+
     <!-- Backlog -->
     <div class="card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-inbox me-2"></i>Backlog</span>
-        <span class="badge bg-secondary">{{ backlog.count }}</span>
+        <span><i class="bi bi-inbox me-2"></i><strong>Backlog</strong>
+          <span class="badge bg-secondary ms-1">{{ backlog.count }}</span>
+        </span>
+        <div class="d-flex gap-1">
+          {% if can_execute %}
+          <a href="{% url 'projects:story_create' project.pk %}" class="btn btn-xs btn-primary py-0 px-2" style="font-size:.75rem">
+            <i class="bi bi-plus"></i>
+          </a>
+          {% endif %}
+          <a href="{% url 'projects:backlog' project.pk %}" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.75rem">
+            Tout voir
+          </a>
+        </div>
       </div>
-      <div class="card-body p-0" style="max-height:250px;overflow-y:auto">
+      <div class="card-body p-0" style="max-height:280px;overflow-y:auto">
         {% for story in backlog %}
-        <a href="{% url 'projects:story_detail' project.pk story.pk %}"
-           class="list-group-item list-group-item-action px-3 py-2 border-bottom small">
-          <div class="d-flex justify-content-between align-items-center">
-            <span class="text-truncate">{{ story.title|truncatechars:45 }}</span>
-            {% if story.story_points %}
-            <span class="badge bg-light text-dark ms-2">{{ story.story_points }}pts</span>
-            {% endif %}
-          </div>
-        </a>
+        <div class="backlog-row">
+          <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--bs-{{ PRIORITY_COLORS|get_item:story.priority }})"></div>
+          <a href="{% url 'projects:story_detail' project.pk story.pk %}" class="backlog-title">
+            {{ story.title|truncatechars:50 }}
+          </a>
+          {% if story.story_points %}
+          <span class="badge bg-light text-dark border" style="font-size:.65rem">{{ story.story_points }}pt</span>
+          {% endif %}
+        </div>
         {% empty %}
-        <div class="text-center text-muted py-3 small">Backlog vide</div>
+        <div class="text-center text-muted py-3 small">
+          <i class="bi bi-inbox me-1"></i>Backlog vide
+          {% if can_execute %}
+          — <a href="{% url 'projects:story_create' project.pk %}">créer une story</a>
+          {% endif %}
+        </div>
         {% endfor %}
       </div>
     </div>
 
+    <!-- Livrables -->
+    {% if deliverables %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-box-seam me-2"></i><strong>Livrables</strong></span>
+        {% if can_manage %}
+        <a href="{% url 'projects:deliverable_create' project.pk %}" class="btn btn-xs btn-primary py-0 px-2" style="font-size:.75rem">
+          <i class="bi bi-plus"></i>
+        </a>
+        {% endif %}
+      </div>
+      <div class="card-body p-0">
+        {% for d in deliverables %}
+        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom small">
+          <span class="badge {% if d.status == 'VALIDE' %}bg-success{% elif d.status == 'LIVRE' %}bg-primary{% elif d.status == 'EN_COURS' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ d.get_status_display }}</span>
+          <span class="flex-grow-1 text-truncate">{{ d.title }}</span>
+          <span class="text-muted" style="font-size:.7rem">{{ d.due_date|date:"d/m"|default:"—" }}</span>
+          {% if can_manage %}
+          <a href="{% url 'projects:deliverable_update' project.pk d.pk %}" class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size:.65rem"><i class="bi bi-pencil"></i></a>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-box-seam me-2"></i><strong>Livrables</strong></span>
+        {% if can_manage %}
+        <a href="{% url 'projects:deliverable_create' project.pk %}" class="btn btn-xs btn-primary py-0 px-2" style="font-size:.75rem">
+          <i class="bi bi-plus"></i> Ajouter
+        </a>
+        {% endif %}
+      </div>
+      <div class="card-body text-center text-muted small py-3">Aucun livrable défini.</div>
+    </div>
+    {% endif %}
+
     <!-- Équipe -->
     <div class="card">
-      <div class="card-header"><i class="bi bi-people me-2"></i>Équipe ({{ project.team.count }})</div>
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-people me-2"></i><strong>Équipe ({{ project.team.count }})</strong></span>
+        {% if can_manage %}
+        <a href="{% url 'projects:update' project.pk %}" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.75rem" title="Gérer l'équipe">
+          <i class="bi bi-person-plus"></i>
+        </a>
+        {% endif %}
+      </div>
       <div class="card-body p-2">
         <div class="d-flex align-items-center gap-2 mb-2 pb-2 border-bottom">
           <div class="avatar-sm" style="background:#fd7e14">
@@ -192,7 +348,7 @@
           </div>
           <div>
             <div class="small fw-600">{{ project.manager.get_full_name|default:project.manager.username }}</div>
-            <div class="text-muted" style="font-size:.7rem">Responsable</div>
+            <div class="text-muted" style="font-size:.7rem">Chef de projet</div>
           </div>
         </div>
         {% for member in project.team.all %}
@@ -205,9 +361,12 @@
             <div class="text-muted" style="font-size:.7rem">{{ member.get_role_display }}</div>
           </div>
         </div>
+        {% empty %}
+        <div class="text-center text-muted small py-2">Aucun membre ajouté.</div>
         {% endfor %}
       </div>
     </div>
+
   </div>
   {% endif %}
 

@@ -28,6 +28,19 @@
     {% endfor %}
     {% endif %}
 
+    {% if form.errors %}
+    <div class="alert alert-danger alert-dismissible py-2 small">
+      <i class="bi bi-exclamation-circle-fill me-1"></i>
+      {% for error in form.non_field_errors %}
+        {{ error }}
+      {% endfor %}
+      {% for field in form %}
+        {% for error in field.errors %}{{ error }}{% endfor %}
+      {% endfor %}
+      <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
     <form method="post" action="{% url 'account_login' %}">
       {% csrf_token %}
       <div class="mb-3">
@@ -56,8 +69,14 @@
       </button>
     </form>
 
-    <div class="text-center mt-4 small text-muted">
-      &copy; {{ now|date:"Y" }} QoS Ticketing — Gestion des tickets et incidents
+    <div class="text-center mt-3">
+      <a href="{% url 'accounts:register' %}" class="small text-muted">
+        <i class="bi bi-person-plus me-1"></i>Pas encore de compte ? S'inscrire
+      </a>
+    </div>
+
+    <div class="text-center mt-3 small text-muted">
+      &copy; {% now "Y" %} QoS Ticketing — Gestion des tickets et incidents
     </div>
   </div>
 </div>

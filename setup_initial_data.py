@@ -40,18 +40,22 @@ def create_departments():
 
 def create_users(depts):
     print("Création des utilisateurs...")
-    users_data = [
-        ('admin',        'Admin',   'Système',    'admin@qos.local',        'admin@123',    User.ROLE_ADMIN,       'DSI'),
-        ('manager_dsi',  'Jean',    'Kouassi',    'jkouassi@qos.local',     'password123',  User.ROLE_MANAGER,     'DSI'),
-        ('manager_daf',  'Fatou',   'Coulibaly',  'fcoulibaly@qos.local',   'password123',  User.ROLE_MANAGER,     'DAF'),
-        ('agent_01',     'Marie',   'Bamba',      'mbamba@qos.local',       'password123',  User.ROLE_AGENT,       'DSI'),
-        ('tech_01',      'Pierre',  'Traoré',     'ptraore@qos.local',      'password123',  User.ROLE_TECHNICIEN,  'DSI'),
-        ('tech_02',      'Awa',     'Diomandé',   'adiomande@qos.local',    'password123',  User.ROLE_TECHNICIEN,  'DSI'),
-        ('demandeur_01', 'Alice',   "N'Guessan",  'anguessan@qos.local',    'password123',  User.ROLE_DEMANDEUR,   'DCOM'),
-        ('demandeur_02', 'Robert',  'Diallo',     'rdiallo@qos.local',      'password123',  User.ROLE_DEMANDEUR,   'DAF'),
-        ('obs_01',       'Soro',    'Bintou',     'sbintou@qos.local',      'password123',  User.ROLE_OBSERVATEUR, 'DSI'),
+    # ── Comptes essentiels (production) ──────────────────────────────────────
+    core_users = [
+        ('badival',       'Dieudonné', 'BAHENG', 'dieudonne.baheng@gmail.com',  'admin@123',   User.ROLE_ADMIN,  'DSI'),
+        ('VFYX5401', 'Dieudonné', 'BAHENG', 'dieudonne.baheng@orange.com', 'password123', User.ROLE_AGENT,  'DSI'),
     ]
-    for username, first, last, email, pwd, role, dept_code in users_data:
+    # ── Comptes de démonstration (optionnels) ─────────────────────────────────
+    demo_users = [
+        ('manager_dsi',  'Jean',    'Kouassi',   'jkouassi@orange.com',    'password123', User.ROLE_MANAGER,     'DSI'),
+        ('manager_daf',  'Fatou',   'Coulibaly', 'fcoulibaly@orange.com',  'password123', User.ROLE_MANAGER,     'DAF'),
+        ('tech_01',      'Pierre',  'Traoré',    'ptraore@orange.com',     'password123', User.ROLE_TECHNICIEN,  'DSI'),
+        ('tech_02',      'Awa',     'Diomandé',  'adiomande@orange.com',   'password123', User.ROLE_TECHNICIEN,  'DSI'),
+        ('demandeur_01', 'Alice',   "N'Guessan", 'anguessan@orange.com',   'password123', User.ROLE_DEMANDEUR,   'DCOM'),
+        ('demandeur_02', 'Robert',  'Diallo',    'rdiallo@orange.com',     'password123', User.ROLE_DEMANDEUR,   'DAF'),
+        ('obs_01',       'Soro',    'Bintou',    'sbintou@orange.com',     'password123', User.ROLE_OBSERVATEUR, 'DSI'),
+    ]
+    for username, first, last, email, pwd, role, dept_code in core_users + demo_users:
         if not User.objects.filter(username=username).exists():
             u = User.objects.create_user(
                 username=username, first_name=first, last_name=last,
@@ -141,15 +145,11 @@ if __name__ == '__main__':
     create_sla_configs()
     create_kb_categories()
     print("\n=== Terminé ! ===")
-    print("\nComptes créés:")
-    print("  admin / admin@123              (Administrateur)")
-    print("  manager_dsi / password123      (Manager — DSI)")
-    print("  manager_daf / password123      (Manager — DAF)")
-    print("  agent_01 / password123         (Agent de Support)")
-    print("  tech_01 / password123          (Technicien)")
-    print("  demandeur_01 / password123     (Demandeur — DCOM)")
+    print("\nComptes essentiels:")
+    print("  dbaheng       / admin@123    (Administrateur — dieudonne.baheng@gmail.com)")
+    print("  dbaheng_agent / password123  (Agent de Support — dieudonne.baheng@orange.com)")
     print("\nURLs:")
-    print("  Dashboard : http://localhost:8000/dashboard/")
-    print("  Admin     : http://localhost:8000/admin/")
-    print("  API Docs  : http://localhost:8000/api/docs/")
-    print("  SLA Config: http://localhost:8000/tickets/sla-config/")
+    print("  Dashboard    : http://localhost:8000/dashboard/")
+    print("  Admin Django : http://localhost:8000/omcm-backoffice/")
+    print("  API Docs     : http://localhost:8000/api/docs/")
+    print("  SLA Config   : http://localhost:8000/tickets/sla-config/")

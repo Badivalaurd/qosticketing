@@ -1,0 +1,54 @@
+{% extends 'email/base_email.html' %}
+
+{% block header_label %}Mention{% endblock %}
+
+{% block event_banner %}
+<div style="background:#fff8e1;border-bottom:1px solid #ffe08a;padding:12px 28px;display:flex;align-items:center;gap:10px;">
+  <span style="width:32px;height:32px;background:#f59e0b;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10h5v-2h-5c-4.34 0-8-3.66-8-8s3.66-8 8-8 8 3.66 8 8v1.43c0 .79-.71 1.57-1.5 1.57s-1.5-.78-1.5-1.57V12c0-2.76-2.24-5-5-5s-5 2.24-5 5 2.24 5 5 5c1.38 0 2.64-.56 3.54-1.47.65.89 1.77 1.47 2.96 1.47 1.97 0 3.5-1.6 3.5-3.57V12c0-5.52-4.48-10-10-10zm0 13c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/></svg>
+  </span>
+  <div>
+    <div style="font-size:13px;font-weight:700;color:#b45309;">Vous avez été mentionné</div>
+    <div style="font-size:11px;color:#97a0af;margin-top:1px;">Votre CUID a été cité dans un commentaire</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="greeting">Bonjour <strong>{{ recipient_name }}</strong>,</p>
+<p style="font-size:14px;color:#42526e;margin:0 0 4px;">
+  Votre CUID a été mentionné dans un commentaire du ticket ci-dessous.
+  Vous êtes peut-être invité à répondre ou à prendre action.
+</p>
+
+<div class="ticket-box">
+  <div style="padding:14px 16px;">
+    <span class="ticket-num">{{ ticket_number }}</span>
+    <div class="ticket-title">{{ ticket_title }}</div>
+  </div>
+  <div class="ticket-meta">
+    <div class="meta-col">
+      <div class="meta-label">Statut</div>
+      <div class="meta-value"><strong>{{ ticket_status }}</strong></div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Priorité</div>
+      <div class="meta-value">
+        <span class="prio prio-{{ ticket_priority|slice:':2' }}">{{ ticket_priority }}</span>
+      </div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Catégorie</div>
+      <div class="meta-value">{{ ticket_category }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="alert-box alert-warning">
+  <div class="alert-body">&#64;{{ recipient_name }} — consultez le commentaire et répondez si nécessaire.</div>
+</div>
+
+<div class="cta">
+  <a href="{{ ticket_url }}" class="btn">&#128204;&nbsp; Voir la mention</a>
+</div>
+{% endblock %}

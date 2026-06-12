@@ -169,8 +169,10 @@ class Ticket(models.Model):
     SLA_PAUSE_STATUSES = [STATUS_ATTENTE_INFO, STATUS_ATTENTE_PRESTATAIRE]
     # Statuts terminaux (SLA s'arrête)
     SLA_STOP_STATUSES = [STATUS_RESOLU, STATUS_CLOTURE, STATUS_REJETE, STATUS_ANNULE]
-    # Statuts qui verrouillent totalement le ticket (aucune modification possible, même pour l'admin)
-    LOCKED_STATUSES = [STATUS_ANNULE, STATUS_CLOTURE]
+    # Statuts qui verrouillent totalement le ticket pour TOUT LE MONDE (y compris l'admin)
+    LOCKED_STATUSES = [STATUS_ANNULE]
+    # Statuts modifiables uniquement par l'admin (pas l'agent, ni les autres rôles)
+    ADMIN_ONLY_STATUSES = [STATUS_CLOTURE, STATUS_REJETE]
 
     STATUS_COLORS = {
         STATUS_NOUVEAU: 'secondary',
@@ -188,7 +190,7 @@ class Ticket(models.Model):
     number = models.CharField('Numéro', max_length=20, unique=True, editable=False)
 
     # ---- Informations générales ----
-    title = models.CharField('Titre', max_length=500)
+    title = models.CharField('Titre', max_length=150)
     description = models.TextField('Description')
     category = models.ForeignKey(
         Category, on_delete=models.PROTECT, related_name='tickets', verbose_name='Catégorie'
@@ -376,8 +378,21 @@ class Ticket(models.Model):
 
     @property
     def is_locked(self):
-        """True si le ticket est verrouillé — aucune modification permise, même pour l'admin."""
+        """True si le ticket est verrouillé pour tout le monde sans exception (statut ANNULE)."""
         return self.status in self.LOCKED_STATUSES
+
+    def is_locked_for(self, user):
+        """
+        True si ce ticket est non modifiable pour cet utilisateur précis.
+        - ANNULE        → verrouillé pour tous, admin compris
+        - CLOTURE/REJETE → verrouillé pour tous sauf l'admin
+        """
+        from apps.accounts.models import User as U
+        if self.status in self.LOCKED_STATUSES:
+            return True
+        if self.status in self.ADMIN_ONLY_STATUSES:
+            return user.role != U.ROLE_ADMIN
+        return False
 
     @property
     def is_sla_paused(self):
@@ -557,14 +572,39 @@ class Ticket(models.Model):
         # Manager : son département
         if user.role == U.ROLE_MANAGER:
             return self.target_department == user.department or self.department == user.department
-        # Demandeur : tickets de son département
+        # Demandeur : uniquement les tickets créés par des membres de son équipe
         if user.role == U.ROLE_DEMANDEUR:
-            return self.created_by.department == user.department
+            if not user.department_id:
+                return self.created_by_id == user.pk
+            return self.created_by.department_id == user.department_id
         # Visibilité temporaire : info_requested_from ou responsable courant en ATTENTE_INFO
         if self.status == self.STATUS_ATTENTE_INFO:
             if self.info_requested_from == user or self.responsable == user:
                 return True
         return False
+
+    def can_technicien_takeover(self, user):
+        """
+        Un technicien peut s'auto-affecter un ticket si :
+        - le ticket est affecté à un autre technicien de son département
+        - le ticket n'est pas encore EN_COURS (ni plus avancé)
+        """
+        from apps.accounts.models import User as U
+        if user.role != U.ROLE_TECHNICIEN:
+            return False
+        non_takeable = [
+            self.STATUS_EN_COURS, self.STATUS_ATTENTE_INFO,
+            self.STATUS_ATTENTE_PRESTATAIRE, self.STATUS_RESOLU,
+            self.STATUS_CLOTURE, self.STATUS_REJETE, self.STATUS_ANNULE,
+        ]
+        if self.status in non_takeable:
+            return False
+        return (
+            self.assigned_to_id is not None and
+            self.assigned_to_id != user.pk and
+            self.assigned_to.role == U.ROLE_TECHNICIEN and
+            self.assigned_to.department_id == user.department_id
+        )
 
 
 class TicketHistory(models.Model):

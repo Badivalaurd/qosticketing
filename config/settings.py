@@ -7,7 +7,43 @@ load_dotenv(BASE_DIR / '.env')
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-dev-key-change-in-production')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
+
+# Render
+if os.getenv('RENDER_EXTERNAL_HOSTNAME'):
+    ALLOWED_HOSTS.append(os.getenv('RENDER_EXTERNAL_HOSTNAME'))
+
+# Railway — injecte RAILWAY_PUBLIC_DOMAIN automatiquement
+if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
+    ALLOWED_HOSTS.append(os.getenv('RAILWAY_PUBLIC_DOMAIN'))
+
+# Fly.io — injecte FLY_APP_NAME automatiquement
+if os.getenv('FLY_APP_NAME'):
+    ALLOWED_HOSTS.append(f"{os.getenv('FLY_APP_NAME')}.fly.dev")
+
+# Koyeb — injecte KOYEB_APP_NAME automatiquement
+if os.getenv('KOYEB_APP_NAME'):
+    ALLOWED_HOSTS.append('.koyeb.app')
+
+# CSRF — obligatoire pour les domaines HTTPS en production
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()
+]
+if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
+    CSRF_TRUSTED_ORIGINS.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
+if os.getenv('FLY_APP_NAME'):
+    CSRF_TRUSTED_ORIGINS.append(f"https://{os.getenv('FLY_APP_NAME')}.fly.dev")
+if os.getenv('KOYEB_PUBLIC_DOMAIN'):
+    CSRF_TRUSTED_ORIGINS.append(f"https://{os.getenv('KOYEB_PUBLIC_DOMAIN')}")
+
+# Sécurité HTTPS (activée automatiquement hors DEBUG)
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -26,6 +62,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
+    'import_export',
     # Local apps
     'apps.accounts',
     'apps.tickets',
@@ -72,13 +109,19 @@ WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
 # Database
-if os.getenv('DB_ENGINE'):
+# Base de données
+# Priorité : DATABASE_URL (Render/prod) > variables DB_* (Docker local) > SQLite (dev)
+_DATABASE_URL = os.getenv('DATABASE_URL')
+if _DATABASE_URL:
+    import dj_database_url
+    DATABASES = {'default': dj_database_url.config(default=_DATABASE_URL, conn_max_age=600)}
+elif os.getenv('DB_ENGINE'):
     DATABASES = {
         'default': {
             'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
-            'NAME': os.getenv('DB_NAME', 'postgres'),
+            'NAME': os.getenv('DB_NAME', 'qos_ticketing'),
             'USER': os.getenv('DB_USER', 'postgres'),
-            'PASSWORD': os.getenv('DB_PASSWORD', ''),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'postgres_password'),
             'HOST': os.getenv('DB_HOST', 'localhost'),
             'PORT': os.getenv('DB_PORT', '5432'),
             'CONN_MAX_AGE': 600,
@@ -86,6 +129,7 @@ if os.getenv('DB_ENGINE'):
         }
     }
 else:
+    # Fallback SQLite pour les tests unitaires uniquement
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -105,6 +149,9 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
+
+from django.contrib.messages import constants as _msg
+MESSAGE_TAGS = {_msg.ERROR: 'danger'}
 
 LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'Africa/Abidjan'
@@ -128,6 +175,7 @@ CRISPY_TEMPLATE_PACK = 'bootstrap5'
 ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'optional'
+ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 LOGIN_URL = '/accounts/login/'
@@ -139,7 +187,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.BasicAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'apps.accounts.permissions.IsAdminRole',
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -168,9 +216,10 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'QoS Ticketing <noreply.qosomcm@gmail.com>')
 NOTIFICATION_EMAIL = os.getenv('NOTIFICATION_EMAIL', '')
 
-# Celery
+# Celery — si pas de Redis, les tâches s'exécutent en synchrone (pas de crash)
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_TASK_ALWAYS_EAGER = not bool(os.getenv('CELERY_BROKER_URL'))
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -182,4 +231,64 @@ SLA_HOURS = {
     'HAUTE': 8,
     'MOYENNE': 24,
     'FAIBLE': 72,
+}
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'console': {
+            'format': '\033[36m{asctime}\033[0m [{levelname}] {name} | {message}',
+            'style': '{',
+            'datefmt': '%H:%M:%S',
+        },
+        'file': {
+            'format': '{asctime} [{levelname}] {name} | user={user} | {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+            'defaults': {'user': 'system'},
+        },
+    },
+    'filters': [],
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'console',
+        },
+        'daily_global': {
+            '()': 'apps.accounts.log_handlers.DailyFileHandler',
+            'log_dir': str(LOGS_DIR),
+            'formatter': 'file',
+        },
+        'daily_user': {
+            '()': 'apps.accounts.log_handlers.UserDailyFileHandler',
+            'log_dir': str(LOGS_DIR),
+            'formatter': 'file',
+        },
+    },
+    'loggers': {
+        'apps': {
+            'handlers': ['console', 'daily_global', 'daily_user'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
 }

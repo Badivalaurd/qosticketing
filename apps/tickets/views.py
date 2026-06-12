@@ -183,10 +183,11 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
         ctx['history_is_paginated'] = history_paginator.num_pages > 1
 
         ctx['attachments'] = ticket.attachments.all()
-        ctx['is_locked'] = ticket.is_locked
+        locked_for_user = ticket.is_locked_for(user)
+        ctx['is_locked'] = locked_for_user
 
-        # Ticket verrouillé — aucune action disponible
-        if ticket.is_locked:
+        # Ticket verrouillé pour cet utilisateur — aucune action disponible
+        if locked_for_user:
             ctx['allowed_transitions'] = []
             ctx['can_assign'] = False
             ctx['can_request_info'] = False
@@ -205,6 +206,9 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
         ctx['can_assign'] = can_assign
         if can_assign:
             ctx['assign_form'] = TicketAssignForm(instance=ticket, current_user=user)
+
+        # Prise en charge par un technicien (auto-affectation)
+        ctx['can_takeover'] = ticket.can_technicien_takeover(user)
 
         # Formulaire demande d'info (pas les admins, seulement EN_COURS)
         ctx['can_request_info'] = (
@@ -248,7 +252,8 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
         ctx['can_set_waiting'] = user.role in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_TECHNICIEN]
 
         ctx['can_edit'] = (
-            user.role in [User.ROLE_ADMIN, User.ROLE_AGENT] or
+            user.role == User.ROLE_ADMIN or
+            (user.role == User.ROLE_AGENT and ticket.status not in Ticket.ADMIN_ONLY_STATUSES) or
             (ticket.status == Ticket.STATUS_NOUVEAU and ticket.created_by == user)
         )
         return ctx
@@ -286,10 +291,11 @@ def ticket_create(request):
 @login_required
 def ticket_edit(request, number):
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucune modification n'est possible.")
         return redirect('tickets:detail', number=number)
-    if not (request.user.role in [User.ROLE_ADMIN, User.ROLE_AGENT] or
+    if not (request.user.role == User.ROLE_ADMIN or
+            (request.user.role == User.ROLE_AGENT and ticket.status not in Ticket.ADMIN_ONLY_STATUSES) or
             (ticket.status == Ticket.STATUS_NOUVEAU and ticket.created_by == request.user)):
         messages.error(request, "Modification non autorisée.")
         return redirect('tickets:detail', number=number)
@@ -317,7 +323,7 @@ def ticket_edit(request, number):
 @login_required
 def ticket_change_status(request, number):
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucune modification n'est possible.")
         return redirect('tickets:detail', number=number)
     if not ticket.can_user_see(request.user):
@@ -399,7 +405,7 @@ def ticket_assign(request, number):
     ticket = get_object_or_404(Ticket, number=number)
     user = request.user
 
-    if ticket.is_locked:
+    if ticket.is_locked_for(user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucune modification n'est possible.")
         return redirect('tickets:detail', number=number)
 
@@ -429,15 +435,51 @@ def ticket_assign(request, number):
                 old_value=str(old_assignee or ''),
                 new_value=str(ticket.assigned_to or ''),
             )
-            send_ticket_notification(ticket, 'assigned')
-            messages.success(request, f"Ticket affecté à {ticket.assigned_to} — SLA réinitialisé.")
+            if old_assignee and old_assignee != ticket.assigned_to:
+                send_ticket_notification(ticket, 'unassigned', recipient=old_assignee)
+            if ticket.assigned_to:
+                send_ticket_notification(ticket, 'assigned')
+            messages.success(request, f"Ticket affecté à {ticket.assigned_to} — SLA réinitialisé." if ticket.assigned_to else "Ticket désaffecté.")
+    return redirect('tickets:detail', number=number)
+
+
+@login_required
+def ticket_takeover(request, number):
+    """Permet à un technicien de s'auto-affecter un ticket d'un collègue (même département, pas encore EN_COURS)."""
+    ticket = get_object_or_404(Ticket, number=number)
+    user = request.user
+
+    if not ticket.can_technicien_takeover(user):
+        messages.error(request, "Vous ne pouvez pas prendre en charge ce ticket.")
+        return redirect('tickets:detail', number=number)
+
+    if request.method == 'POST':
+        old_assignee = ticket.assigned_to
+        ticket.assigned_to = user
+        ticket.responsable = user
+        ticket.reset_sla_on_assign()
+        if ticket.status == Ticket.STATUS_NOUVEAU:
+            ticket.status = Ticket.STATUS_AFFECTE
+            ticket.assigned_at = timezone.now()
+        ticket.save()
+        TicketHistory.objects.create(
+            ticket=ticket, user=user,
+            action=f"Prise en charge par {user} (remplace {old_assignee})",
+            field_name='assigned_to',
+            old_value=str(old_assignee or ''),
+            new_value=str(user),
+        )
+        if old_assignee:
+            send_ticket_notification(ticket, 'unassigned', recipient=old_assignee)
+        send_ticket_notification(ticket, 'assigned')
+        messages.success(request, "Vous avez pris en charge ce ticket.")
     return redirect('tickets:detail', number=number)
 
 
 @login_required
 def ticket_request_info(request, number):
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         return redirect('tickets:detail', number=number)
     if request.method == 'POST':
         form = TicketRequestInfoForm(request.POST)
@@ -470,7 +512,7 @@ def ticket_request_info(request, number):
 @login_required
 def add_comment(request, number):
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — les commentaires ne sont plus acceptés.")
         return redirect('tickets:detail', number=number)
     if not ticket.can_user_see(request.user):
@@ -518,7 +560,7 @@ def add_comment(request, number):
 @login_required
 def add_attachment(request, number):
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucun ajout de pièce jointe n'est possible.")
         return redirect('tickets:detail', number=number)
     if request.method == 'POST':
@@ -541,7 +583,7 @@ def add_attachment(request, number):
 def ticket_change_priority(request, number):
     """Redéfinir la priorité d'un ticket et réinitialiser le SLA (admin/agent)."""
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucune modification n'est possible.")
         return redirect('tickets:detail', number=number)
     if request.user.role not in [User.ROLE_ADMIN, User.ROLE_AGENT]:
