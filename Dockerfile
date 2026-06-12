@@ -22,10 +22,4 @@ RUN SECRET_KEY=build-only-dummy-key python manage.py collectstatic --no-input
 
 EXPOSE 8080
 
-CMD ["gunicorn", "config.wsgi:application", \
-     "--bind", "0.0.0.0:8080", \
-     "--workers", "1", \
-     "--worker-class", "sync", \
-     "--timeout", "120", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+CMD ["sh", "-c", "python manage.py migrate --no-input && (python manage.py init_prod || true) && gunicorn config.wsgi:application --bind 0.0.0.0:8080 --workers 1 --worker-class sync --timeout 120 --access-logfile - --error-logfile -"]
