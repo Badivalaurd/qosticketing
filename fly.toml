@@ -1,0 +1,19 @@
+app = "qos-ticketing"
+primary_region = "cdg"
+
+[build]
+
+[deploy]
+release_command = "python manage.py migrate --no-input && python manage.py init_prod"
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = false
+auto_start_machines = true
+min_machines_running = 1
+
+[[vm]]
+cpu_kind = "shared"
+cpus = 1
+memory_mb = 512

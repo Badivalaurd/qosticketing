@@ -17,12 +17,18 @@ if os.getenv('RENDER_EXTERNAL_HOSTNAME'):
 if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
     ALLOWED_HOSTS.append(os.getenv('RAILWAY_PUBLIC_DOMAIN'))
 
+# Fly.io — injecte FLY_APP_NAME automatiquement
+if os.getenv('FLY_APP_NAME'):
+    ALLOWED_HOSTS.append(f"{os.getenv('FLY_APP_NAME')}.fly.dev")
+
 # CSRF — obligatoire pour les domaines HTTPS en production
 CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()
 ]
 if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
     CSRF_TRUSTED_ORIGINS.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
+if os.getenv('FLY_APP_NAME'):
+    CSRF_TRUSTED_ORIGINS.append(f"https://{os.getenv('FLY_APP_NAME')}.fly.dev")
 
 # Sécurité HTTPS (activée automatiquement hors DEBUG)
 if not DEBUG:
