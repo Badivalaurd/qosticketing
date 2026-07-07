@@ -48,22 +48,29 @@ def get_tickets_for_user(user, tab='it'):
     if user.role == User.ROLE_TECHNICIEN:
         return qs
 
-    # Observateur IT → tout voir ; sinon son dept
+    # Observateur IT → tout voir ; sinon son dept (jamais NO-DEPT global)
     if user.role == User.ROLE_OBSERVATEUR:
         if user.is_it_member:
             return qs
-        return qs.filter(department=user.department)
+        if user.department and not user.department.is_placeholder:
+            return qs.filter(department=user.department)
+        return qs.filter(created_by=user)
 
-    # Manager → son département (cible ou demandeur)
+    # Manager → son département (cible ou demandeur), sauf si NO-DEPT
     if user.role == User.ROLE_MANAGER:
-        return qs.filter(
-            Q(target_department=user.department) | Q(department=user.department)
-        ).distinct()
+        if user.department and not user.department.is_placeholder:
+            return qs.filter(
+                Q(target_department=user.department) | Q(department=user.department)
+            ).distinct()
+        return qs.filter(created_by=user)
 
-    # Demandeur → tickets des membres de son département
+    # Demandeur → toujours ses propres tickets + ceux de son département réel
+    # (les vieux tickets créés en NO-DEPT restent visibles après réaffectation)
     if user.role == User.ROLE_DEMANDEUR:
-        if user.department:
-            return qs.filter(created_by__department=user.department)
+        if user.department and not user.department.is_placeholder:
+            return qs.filter(
+                Q(created_by=user) | Q(created_by__department=user.department)
+            ).distinct()
         return qs.filter(created_by=user)
 
     return qs.none()

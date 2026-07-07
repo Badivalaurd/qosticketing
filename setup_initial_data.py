@@ -17,24 +17,27 @@ from apps.knowledge_base.models import KBCategory
 def create_departments():
     print("Création des départements...")
     depts_data = [
-        ('Département Informatique',             'DSI',  True),
-        ('Département Général',                  'DG',   False),
-        ('Département Administratif et Financier','DAF',  False),
-        ('Département Commercial',               'DCOM', False),
-        ('Département des Ressources Humaines',  'DRH',  False),
-        ('Département Technique',                'DT',   False),
-        ('Département Marketing',                'DMKT', False),
+        # (name, code, is_it, is_placeholder)
+        ('Département Informatique',              'DSI',    True,  False),
+        ('Département Général',                   'DG',     False, False),
+        ('Département Administratif et Financier','DAF',    False, False),
+        ('Département Commercial',                'DCOM',   False, False),
+        ('Département des Ressources Humaines',   'DRH',    False, False),
+        ('Département Technique',                 'DT',     False, False),
+        ('Département Marketing',                 'DMKT',   False, False),
+        ('Sans Département',                      'NO-DEPT',False, True),
     ]
     objs = {}
-    for name, code, is_it in depts_data:
+    for name, code, is_it, is_ph in depts_data:
         d, created = Department.objects.get_or_create(
-            code=code, defaults={'name': name, 'is_it_department': is_it}
+            code=code, defaults={'name': name, 'is_it_department': is_it, 'is_placeholder': is_ph}
         )
         if not created and is_it and not d.is_it_department:
             d.is_it_department = True
             d.save()
         objs[code] = d
-        print(f"  {'Créé' if created else 'Existant'}: {d} {'[IT]' if d.is_it_department else ''}")
+        tag = '[IT]' if d.is_it_department else ('[provisoire]' if d.is_placeholder else '')
+        print(f"  {'Créé' if created else 'Existant'}: {d} {tag}")
     return objs
 
 

@@ -27,6 +27,15 @@ class Department(models.Model):
         verbose_name='Manager ticketing',
         help_text='Responsable de la distribution des tickets dans ce département (hors IT).'
     )
+    is_placeholder = models.BooleanField(
+        'Département provisoire',
+        default=False,
+        help_text=(
+            'Département de transit pour les utilisateurs SSO sans affectation. '
+            'Les membres ne voient que leurs propres tickets. '
+            'Affecter un département réel via l\'admin utilisateur.'
+        )
+    )
     is_active = models.BooleanField('Actif', default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

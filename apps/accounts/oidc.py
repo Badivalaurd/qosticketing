@@ -37,8 +37,9 @@ class KeycloakOIDCBackend(OIDCAuthenticationBackend):
         first_name = claims.get('given_name', '')
         last_name = claims.get('family_name', '')
 
+        # Affecter NO-DEPT par défaut — jamais DSI pour les utilisateurs SSO
         try:
-            dept = Department.objects.get(code='DSI')
+            dept = Department.objects.get(code='NO-DEPT')
         except Department.DoesNotExist:
             dept = None
 

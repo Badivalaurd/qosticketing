@@ -38,18 +38,20 @@ class Command(BaseCommand):
     def _create_depts(self):
         from apps.accounts.models import Department
         depts_data = [
-            ('Département Informatique',              'DSI',  True),
-            ('Département Général',                   'DG',   False),
-            ('Département Administratif et Financier','DAF',  False),
-            ('Département Commercial',                'DCOM', False),
-            ('Département des Ressources Humaines',   'DRH',  False),
-            ('Département Technique',                 'DT',   False),
-            ('Département Marketing',                 'DMKT', False),
+            # (name, code, is_it, is_placeholder)
+            ('Département Informatique',              'DSI',    True,  False),
+            ('Département Général',                   'DG',     False, False),
+            ('Département Administratif et Financier','DAF',    False, False),
+            ('Département Commercial',                'DCOM',   False, False),
+            ('Département des Ressources Humaines',   'DRH',    False, False),
+            ('Département Technique',                 'DT',     False, False),
+            ('Département Marketing',                 'DMKT',   False, False),
+            ('Sans Département',                      'NO-DEPT',False, True),
         ]
-        for name, code, is_it in depts_data:
+        for name, code, is_it, is_ph in depts_data:
             dept, created = Department.objects.get_or_create(
                 code=code,
-                defaults={'name': name, 'is_it_department': is_it},
+                defaults={'name': name, 'is_it_department': is_it, 'is_placeholder': is_ph},
             )
             if is_it and not dept.is_it_department:
                 dept.is_it_department = True
