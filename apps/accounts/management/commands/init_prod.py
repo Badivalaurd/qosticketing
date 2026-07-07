@@ -6,6 +6,8 @@ Usage :
     python manage.py init_prod
     python manage.py init_prod --no-demo    (sans les catégories/SLA démo)
 """
+import os
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -96,7 +98,7 @@ class Command(BaseCommand):
         dsi = Department.objects.get(code='DSI')
         users = [
             dict(username='admin_omcm', first_name='Admin', last_name='OMCM',
-                 email='admin@omcm.local', password='admin@123',
+                 email=os.getenv('ADMIN_EMAIL', 'admin@omcm.local'), password='admin@123',
                  role=User.ROLE_ADMIN, is_staff=True, is_superuser=True),
             dict(username='agent_omcm', first_name='Agent', last_name='Support',
                  email='agent@omcm.local', password='agent@123',

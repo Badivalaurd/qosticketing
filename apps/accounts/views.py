@@ -1,12 +1,38 @@
+import urllib.parse
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.conf import settings
+from django.views.decorators.http import require_http_methods
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib import messages
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse_lazy
 from .models import User, Department, AuditLog
 from .forms import UserRegisterForm, UserProfileForm, UserAdminForm, DepartmentForm
+
+
+@require_http_methods(['GET', 'POST'])
+def sso_logout(request):
+    """
+    Déconnexion unifiée :
+    - SSO (Keycloak) : redirige vers l'endpoint logout Keycloak pour invalider la session SSO
+    - Comptes locaux : déconnexion Django classique
+    """
+    id_token = request.session.get('oidc_id_token')
+    logout(request)  # vide la session Django dans tous les cas
+
+    if id_token:
+        redirect_uri = request.build_absolute_uri(settings.LOGOUT_REDIRECT_URL or '/accounts/login/')
+        params = urllib.parse.urlencode({
+            'id_token_hint': id_token,
+            'post_logout_redirect_uri': redirect_uri,
+            'redirect_uri': redirect_uri,  # compat Keycloak < 18
+        })
+        return redirect(f"{settings.OIDC_OP_LOGOUT_ENDPOINT}?{params}")
+
+    return redirect(settings.LOGOUT_REDIRECT_URL or '/accounts/login/')
 
 
 class AdminRequiredMixin(UserPassesTestMixin):

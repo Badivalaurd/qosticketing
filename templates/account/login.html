@@ -20,6 +20,13 @@
     <h2 class="text-center mb-1 fw-700">QoS Ticketing</h2>
     <p class="text-center text-muted small mb-4">Connectez-vous à votre espace</p>
 
+    {% if request.GET.expired %}
+    <div class="alert alert-warning d-flex align-items-center gap-2 py-2 small">
+      <i class="bi bi-clock-history flex-shrink-0"></i>
+      <span>Votre session a expiré après 2h d'inactivité. Veuillez vous reconnecter.</span>
+    </div>
+    {% endif %}
+
     {% if messages %}
     {% for message in messages %}
     <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible py-2 small">

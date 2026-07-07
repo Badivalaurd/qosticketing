@@ -8,6 +8,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 from apps.dashboard import views as views_home
 from apps.accounts.permissions import IsAdminRole
 from apps.accounts import registration_views
+from apps.accounts import views as accounts_views
 
 
 def _dashboard_redirect(request, *args, **kwargs):
@@ -16,8 +17,9 @@ def _dashboard_redirect(request, *args, **kwargs):
 
 urlpatterns = [
     path('omcm-backoffice/', admin.site.urls),
-    # Intercepter avant allauth : signup → flux CUID, reset → reset par CUID
+    # Intercepter avant allauth
     path('accounts/signup/', RedirectView.as_view(url='/accounts/register/', permanent=False)),
+    path('accounts/logout/', accounts_views.sso_logout, name='account_logout'),
     path('accounts/password/reset/', registration_views.custom_password_reset, name='account_reset_password'),
     path('accounts/', include('allauth.urls')),
     path('accounts/', include('apps.accounts.urls')),

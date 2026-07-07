@@ -44,8 +44,9 @@ def create_departments():
 def create_users(depts):
     print("Création des utilisateurs...")
     # Uniquement les 2 comptes génériques — skip si déjà existants
+    admin_email = os.getenv('ADMIN_EMAIL', 'admin@omcm.local')
     users = [
-        ('admin_omcm', 'Admin', 'OMCM',    'admin@omcm.local', 'admin@123',  User.ROLE_ADMIN, 'DSI'),
+        ('admin_omcm', 'Admin', 'OMCM',    admin_email,       'admin@123',  User.ROLE_ADMIN, 'DSI'),
         ('agent_omcm', 'Agent', 'Support', 'agent@omcm.local', 'agent@123',  User.ROLE_AGENT, 'DSI'),
     ]
     for username, first, last, email, pwd, role, dept_code in users:
