@@ -17,13 +17,13 @@ from apps.knowledge_base.models import KBCategory
 def create_departments():
     print("Création des départements...")
     depts_data = [
-        ('Département Informatique', 'DSI', True),
-        ('Direction Générale', 'DG', False),
-        ('Direction Financière', 'DAF', False),
-        ('Direction Commerciale', 'DCOM', False),
-        ('Direction des Ressources Humaines', 'DRH', False),
-        ('Direction Technique', 'DT', False),
-        ('Direction Marketing', 'DMKT', False),
+        ('Département Informatique',             'DSI',  True),
+        ('Département Général',                  'DG',   False),
+        ('Département Administratif et Financier','DAF',  False),
+        ('Département Commercial',               'DCOM', False),
+        ('Département des Ressources Humaines',  'DRH',  False),
+        ('Département Technique',                'DT',   False),
+        ('Département Marketing',                'DMKT', False),
     ]
     objs = {}
     for name, code, is_it in depts_data:
@@ -96,16 +96,23 @@ def create_categories():
 
 def create_applications(depts):
     print("Création des applications...")
+    dsi = depts.get('DSI')
     apps = [
-        ('Core Banking System', 'CBS',    depts.get('DSI')),
-        ('ERP Finance',         'ERP',    depts.get('DAF')),
-        ('CRM Commercial',      'CRM',    depts.get('DCOM')),
-        ('SIRH',                'SIRH',   depts.get('DRH')),
-        ('Portail Client',      'PORTAL', depts.get('DCOM')),
-        ('Reporting BI',        'BI',     depts.get('DSI')),
+        ('Tango',                'TANGO',   dsi, 'Core Banking System — traitement des transactions Orange Money'),
+        ('Global Reporting',     'GREPORT', dsi, 'Plateforme de reporting proposée aux partenaires'),
+        ('Customer Care',        'CC',      dsi, 'Système de gestion de la relation client'),
+        ('OMAPI',                'OMAPI',   dsi, 'API Orange Money — intégration partenaires'),
+        ('IRT Sortant',          'IRTS',    dsi, 'Système de traitement des paiements sortants'),
+        ('IRT Entrant',          'IRTE',    dsi, 'Système de traitement des paiements entrants'),
+        ('Eneo Prepaid',         'ENEOPRE', dsi, 'Paiement factures Eneo — électricité prépayée'),
+        ('Eneo Postpaid',        'ENEOPOS', dsi, 'Paiement factures Eneo — électricité postpayée'),
+        ('CAMWATER',             'CAMW',    dsi, 'Paiement factures CAMWATER — eau'),
+        ('Posome',               'POSOME',  dsi, 'Système de collecte et reversement'),
+        ('Facturier Générique',  'FACTGEN', dsi, 'Moteur de facturation générique multi-services'),
+        ('Autre',                'AUTRE',   dsi, 'Application non listée ou transverse'),
     ]
-    for name, code, dept in apps:
-        Application.objects.get_or_create(code=code, defaults={'name': name, 'department': dept})
+    for name, code, dept, desc in apps:
+        Application.objects.get_or_create(code=code, defaults={'name': name, 'department': dept, 'description': desc})
 
 
 def create_sla_configs():

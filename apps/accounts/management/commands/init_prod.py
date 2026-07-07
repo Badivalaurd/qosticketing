@@ -22,8 +22,9 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         self.stdout.write(self.style.MIGRATE_HEADING("=== init_prod ==="))
-        self._create_dept()
+        self._create_depts()
         self._create_users()
+        self._create_applications()
         if not options['no_demo']:
             self._create_categories()
             self._create_sla()
@@ -33,18 +34,58 @@ class Command(BaseCommand):
         self.stdout.write("  Agent   : dbaheng_agent  /  password123")
         self.stdout.write("  Backoffice Django : /omcm-backoffice/")
 
-    # ── Département IT ────────────────────────────────────────────────────────
-    def _create_dept(self):
+    # ── Départements ──────────────────────────────────────────────────────────
+    def _create_depts(self):
         from apps.accounts.models import Department
-        dept, created = Department.objects.get_or_create(
-            code='DSI',
-            defaults={'name': 'Département Informatique', 'is_it_department': True},
-        )
-        if not dept.is_it_department:
-            dept.is_it_department = True
-            dept.save()
-        status = "Créé" if created else "Existant"
-        self.stdout.write(f"  Département : {status} — {dept.name}")
+        depts_data = [
+            ('Département Informatique',              'DSI',  True),
+            ('Département Général',                   'DG',   False),
+            ('Département Administratif et Financier','DAF',  False),
+            ('Département Commercial',                'DCOM', False),
+            ('Département des Ressources Humaines',   'DRH',  False),
+            ('Département Technique',                 'DT',   False),
+            ('Département Marketing',                 'DMKT', False),
+        ]
+        for name, code, is_it in depts_data:
+            dept, created = Department.objects.get_or_create(
+                code=code,
+                defaults={'name': name, 'is_it_department': is_it},
+            )
+            if is_it and not dept.is_it_department:
+                dept.is_it_department = True
+                dept.save()
+            status = "Créé" if created else "Existant"
+            self.stdout.write(f"  Département : {status} — {dept.name}")
+
+    # ── Applications ──────────────────────────────────────────────────────────
+    def _create_applications(self):
+        from apps.tickets.models import Application
+        from apps.accounts.models import Department
+        try:
+            dsi = Department.objects.get(code='DSI')
+        except Department.DoesNotExist:
+            self.stdout.write(self.style.WARNING("  Applications : DSI introuvable, ignoré."))
+            return
+        apps = [
+            ('Tango',               'TANGO',   'Core Banking System — traitement des transactions Orange Money'),
+            ('Global Reporting',    'GREPORT', 'Plateforme de reporting proposée aux partenaires'),
+            ('Customer Care',       'CC',      'Système de gestion de la relation client'),
+            ('OMAPI',               'OMAPI',   'API Orange Money — intégration partenaires'),
+            ('IRT Sortant',         'IRTS',    'Système de traitement des paiements sortants'),
+            ('IRT Entrant',         'IRTE',    'Système de traitement des paiements entrants'),
+            ('Eneo Prepaid',        'ENEOPRE', 'Paiement factures Eneo — électricité prépayée'),
+            ('Eneo Postpaid',       'ENEOPOS', 'Paiement factures Eneo — électricité postpayée'),
+            ('CAMWATER',            'CAMW',    'Paiement factures CAMWATER — eau'),
+            ('Posome',              'POSOME',  'Système de collecte et reversement'),
+            ('Facturier Générique', 'FACTGEN', 'Moteur de facturation générique multi-services'),
+            ('Autre',               'AUTRE',   'Application non listée ou transverse'),
+        ]
+        for name, code, desc in apps:
+            Application.objects.get_or_create(
+                code=code,
+                defaults={'name': name, 'department': dsi, 'description': desc},
+            )
+        self.stdout.write("  Applications : OK")
 
     # ── Comptes essentiels ────────────────────────────────────────────────────
     def _create_users(self):
