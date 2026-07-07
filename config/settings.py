@@ -11,6 +11,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
+    'mozilla_django_oidc',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -105,6 +106,7 @@ AUTH_USER_MODEL = 'accounts.User'
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
+    'apps.accounts.oidc.KeycloakOIDCBackend',
 ]
 
 from django.contrib.messages import constants as _msg
@@ -188,6 +190,27 @@ SLA_HOURS = {
     'MOYENNE': 24,
     'FAIBLE': 72,
 }
+
+# ── Keycloak / OIDC ────────────────────────────────────────────────────────────
+_KC_BASE  = os.getenv('OIDC_KEYCLOAK_URL',   'http://keycloak.adcm.orangecm/auth')
+_KC_REALM = os.getenv('OIDC_KEYCLOAK_REALM', 'digital-app')
+_KC_PROTO = f"{_KC_BASE}/realms/{_KC_REALM}/protocol/openid-connect"
+
+OIDC_RP_CLIENT_ID     = os.getenv('OIDC_RP_CLIENT_ID',     'qos-ticketing')
+OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', '')
+OIDC_RP_SIGN_ALGO     = 'RS256'
+OIDC_RP_SCOPES        = 'openid email profile'
+
+OIDC_OP_AUTHORIZATION_ENDPOINT = f"{_KC_PROTO}/auth"
+OIDC_OP_TOKEN_ENDPOINT         = f"{_KC_PROTO}/token"
+OIDC_OP_USER_ENDPOINT          = f"{_KC_PROTO}/userinfo"
+OIDC_OP_JWKS_ENDPOINT          = f"{_KC_PROTO}/certs"
+OIDC_OP_LOGOUT_ENDPOINT        = f"{_KC_PROTO}/logout"
+
+OIDC_REDIRECT_OK_FIELD_NAME    = 'next'
+OIDC_REDIRECT_FIELD_NAME       = 'next'
+OIDC_STORE_ID_TOKEN            = True
+LOGIN_REDIRECT_URL_FAILURE     = '/accounts/login/'
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 LOGS_DIR = BASE_DIR / 'logs'

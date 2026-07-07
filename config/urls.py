@@ -28,6 +28,7 @@ urlpatterns = [
     path('knowledge-base/', include('apps.knowledge_base.urls')),
     path('reporting/', include('apps.reporting.urls')),
     path('api/', include('apps.api.urls')),
+    path('oidc/', include('mozilla_django_oidc.urls')),
     # Swagger/OpenAPI — admin uniquement
     path('api/schema/', SpectacularAPIView.as_view(permission_classes=[IsAdminRole]), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[IsAdminRole]), name='swagger-ui'),
