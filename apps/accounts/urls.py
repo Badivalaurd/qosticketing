@@ -15,6 +15,11 @@ urlpatterns = [
     path('password/reset/resend/', registration_views.password_reset_resend, name='password_reset_resend'),
     path('password/reset/change/', registration_views.password_reset_change, name='password_reset_change'),
 
+    # ── Connexion par code email (fallback Keycloak) ─────────────────────────
+    path('login/magic/', registration_views.magic_login, name='magic_login'),
+    path('login/magic/verify/', registration_views.magic_login_verify, name='magic_login_verify'),
+    path('login/magic/resend/', registration_views.magic_login_resend, name='magic_login_resend'),
+
     # ── Admin — upload employés autorisés ────────────────────────────────────
     path('admin/upload-employees/', registration_views.upload_employees, name='upload_employees'),
 
