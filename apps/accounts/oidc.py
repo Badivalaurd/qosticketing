@@ -16,18 +16,20 @@ class KeycloakOIDCBackend(OIDCAuthenticationBackend):
     """
 
     def filter_users_by_claims(self, claims):
-        email = claims.get('email', '').lower()
+        # preferred_username = CUID, toujours unique dans Django → priorité absolue
         username = claims.get('preferred_username', '')
-
-        if email:
-            qs = User.objects.filter(email__iexact=email)
-            if qs.exists():
-                return qs
-
         if username:
             qs = User.objects.filter(username=username)
             if qs.exists():
                 return qs
+
+        # Fallback email — limité à 1 pour éviter "Multiple users returned"
+        # (des comptes dupliqués peuvent avoir le même email)
+        email = claims.get('email', '').lower()
+        if email:
+            user = User.objects.filter(email__iexact=email).first()
+            if user:
+                return User.objects.filter(pk=user.pk)
 
         return User.objects.none()
 

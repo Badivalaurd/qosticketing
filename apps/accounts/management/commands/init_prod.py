@@ -30,9 +30,10 @@ class Command(BaseCommand):
             self._create_sla()
         self.stdout.write(self.style.SUCCESS("\nPrêt. Connectez-vous avec :"))
         self.stdout.write("  URL     : /dashboard/")
-        self.stdout.write("  Admin   : dbaheng  /  admin@123")
-        self.stdout.write("  Agent   : dbaheng_agent  /  password123")
+        self.stdout.write("  Admin   : admin_omcm  /  admin@123")
+        self.stdout.write("  Agent   : agent_omcm  /  agent@123")
         self.stdout.write("  Backoffice Django : /omcm-backoffice/")
+        self.stdout.write("  → Modifiez email et mot de passe depuis l'admin après le premier login.")
 
     # ── Départements ──────────────────────────────────────────────────────────
     def _create_depts(self):
@@ -94,11 +95,11 @@ class Command(BaseCommand):
         from apps.accounts.models import User, Department
         dsi = Department.objects.get(code='DSI')
         users = [
-            dict(username='dbaheng',       first_name='Dieudonné', last_name='BAHENG',
-                 email='dieudonne.baheng@gmail.com',  password='admin@123',
+            dict(username='admin_omcm', first_name='Admin', last_name='OMCM',
+                 email='admin@omcm.local', password='admin@123',
                  role=User.ROLE_ADMIN, is_staff=True, is_superuser=True),
-            dict(username='dbaheng_agent', first_name='Dieudonné', last_name='BAHENG',
-                 email='dieudonne.baheng@orange.com', password='password123',
+            dict(username='agent_omcm', first_name='Agent', last_name='Support',
+                 email='agent@omcm.local', password='agent@123',
                  role=User.ROLE_AGENT, is_staff=False, is_superuser=False),
         ]
         for u in users:

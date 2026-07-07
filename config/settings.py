@@ -250,6 +250,11 @@ LOGGING = {
         },
     },
     'loggers': {
+        'mozilla_django_oidc': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
         'apps': {
             'handlers': ['console', 'daily_global', 'daily_user'],
             'level': 'INFO',

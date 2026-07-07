@@ -43,22 +43,12 @@ def create_departments():
 
 def create_users(depts):
     print("Création des utilisateurs...")
-    # ── Comptes essentiels (production) ──────────────────────────────────────
-    core_users = [
-        ('badival',       'Dieudonné', 'BAHENG', 'dieudonne.baheng@gmail.com',  'admin@123',   User.ROLE_ADMIN,  'DSI'),
-        ('VFYX5401', 'Dieudonné', 'BAHENG', 'dieudonne.baheng@orange.com', 'password123', User.ROLE_AGENT,  'DSI'),
+    # Uniquement les 2 comptes génériques — skip si déjà existants
+    users = [
+        ('admin_omcm', 'Admin', 'OMCM',    'admin@omcm.local', 'admin@123',  User.ROLE_ADMIN, 'DSI'),
+        ('agent_omcm', 'Agent', 'Support', 'agent@omcm.local', 'agent@123',  User.ROLE_AGENT, 'DSI'),
     ]
-    # ── Comptes de démonstration (optionnels) ─────────────────────────────────
-    demo_users = [
-        ('manager_dsi',  'Jean',    'Kouassi',   'jkouassi@orange.com',    'password123', User.ROLE_MANAGER,     'DSI'),
-        ('manager_daf',  'Fatou',   'Coulibaly', 'fcoulibaly@orange.com',  'password123', User.ROLE_MANAGER,     'DAF'),
-        ('tech_01',      'Pierre',  'Traoré',    'ptraore@orange.com',     'password123', User.ROLE_TECHNICIEN,  'DSI'),
-        ('tech_02',      'Awa',     'Diomandé',  'adiomande@orange.com',   'password123', User.ROLE_TECHNICIEN,  'DSI'),
-        ('demandeur_01', 'Alice',   "N'Guessan", 'anguessan@orange.com',   'password123', User.ROLE_DEMANDEUR,   'DCOM'),
-        ('demandeur_02', 'Robert',  'Diallo',    'rdiallo@orange.com',     'password123', User.ROLE_DEMANDEUR,   'DAF'),
-        ('obs_01',       'Soro',    'Bintou',    'sbintou@orange.com',     'password123', User.ROLE_OBSERVATEUR, 'DSI'),
-    ]
-    for username, first, last, email, pwd, role, dept_code in core_users + demo_users:
+    for username, first, last, email, pwd, role, dept_code in users:
         if not User.objects.filter(username=username).exists():
             u = User.objects.create_user(
                 username=username, first_name=first, last_name=last,
@@ -155,9 +145,10 @@ if __name__ == '__main__':
     create_sla_configs()
     create_kb_categories()
     print("\n=== Terminé ! ===")
-    print("\nComptes essentiels:")
-    print("  dbaheng       / admin@123    (Administrateur — dieudonne.baheng@gmail.com)")
-    print("  dbaheng_agent / password123  (Agent de Support — dieudonne.baheng@orange.com)")
+    print("\nComptes génériques:")
+    print("  admin_omcm / admin@123  (Administrateur)")
+    print("  agent_omcm / agent@123  (Agent de Support)")
+    print("  → Modifiez email et mot de passe depuis l'admin Django après le premier login.")
     print("\nURLs:")
     print("  Dashboard    : http://localhost:8000/dashboard/")
     print("  Admin Django : http://localhost:8000/omcm-backoffice/")
