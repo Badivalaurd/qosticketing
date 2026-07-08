@@ -171,24 +171,19 @@ def _recipients_for_created(ticket):
         recipients.update(admins)
         return recipients
 
-    # Ticket IT — vérifier si la catégorie a un sous-département responsable
-    it_team = None
+    # Ticket IT : agents de support + admins (toujours)
+    for u in User.objects.filter(role=User.ROLE_AGENT, is_active=True):
+        recipients.add(u)
+    recipients.update(admins)
+
+    # En plus : manager du sous-département IT responsable (MOA ou SI/QoS)
     if ticket.category_id:
         try:
             it_team = ticket.category.it_team
+            if it_team and it_team.manager:
+                recipients.add(it_team.manager)
         except Exception:
             pass
-
-    if it_team and it_team.manager:
-        # Notifier le manager du sous-département IT responsable
-        recipients.add(it_team.manager)
-        recipients.update(admins)
-    else:
-        # Routage général IT : admins + agents de support
-        for u in User.objects.filter(
-            role__in=[User.ROLE_ADMIN, User.ROLE_AGENT], is_active=True
-        ):
-            recipients.add(u)
 
     return recipients
 
