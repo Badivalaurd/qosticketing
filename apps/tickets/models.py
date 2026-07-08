@@ -304,7 +304,16 @@ class Ticket(models.Model):
             seq = 1
         return f"{prefix}{seq:05d}"
 
+    @property
+    def has_sla(self):
+        """Faux pour les Tâches Projet — pas de SLA applicable."""
+        if self.category_id:
+            return self.category.type != Category.TACHE_PROJET
+        return True
+
     def _init_sla(self):
+        if not self.has_sla:
+            return
         sla = SLAConfig.get_for_priority(self.priority)
         now = timezone.now()
         self.sla_response_deadline = now + timedelta(minutes=sla.response_time_minutes)
@@ -313,6 +322,8 @@ class Ticket(models.Model):
     def reset_sla_for_priority(self, new_priority):
         """Réinitialise les SLA selon la nouvelle priorité (depuis maintenant)."""
         self.priority = new_priority
+        if not self.has_sla:
+            return
         sla = SLAConfig.get_for_priority(new_priority)
         now = timezone.now()
         self.sla_response_deadline = now + timedelta(minutes=sla.response_time_minutes)
