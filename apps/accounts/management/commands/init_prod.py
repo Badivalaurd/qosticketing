@@ -35,23 +35,30 @@ class Command(BaseCommand):
         self.stdout.write("  Admin   : admin_omcm  /  admin@123")
         self.stdout.write("  Agent   : agent_omcm  /  agent@123")
         self.stdout.write("  Backoffice Django : /omcm-backoffice/")
-        self.stdout.write("  → Modifiez email et mot de passe depuis l'admin après le premier login.")
+        self.stdout.write("  Modifiez email et mot de passe depuis l'admin apres le premier login.")
 
     # ── Départements ──────────────────────────────────────────────────────────
     def _create_depts(self):
         from apps.accounts.models import Department
         depts_data = [
-            # (name, code, is_it, is_placeholder)
-            ('Département Informatique',              'DSI',    True,  False),
-            ('Département Général',                   'DG',     False, False),
-            ('Département Administratif et Financier','DAF',    False, False),
-            ('Département Commercial',                'DCOM',   False, False),
-            ('Département des Ressources Humaines',   'DRH',    False, False),
-            ('Département Technique',                 'DT',     False, False),
-            ('Département Marketing',                 'DMKT',   False, False),
-            ('Sans Département',                      'NO-DEPT',False, True),
+            # (name, code, is_it, is_placeholder, parent_code)
+            ('Département Informatique',              'DSI',    True,  False, None),
+            ('Département Général',                   'DG',     False, False, None),
+            ('Département Administratif et Financier','DAF',    False, False, None),
+            ('Département Commercial',                'DCOM',   False, False, None),
+            ('Département des Ressources Humaines',   'DRH',    False, False, None),
+            ('Département Technique',                 'DT',     False, False, None),
+            ('Département Marketing',                 'DMKT',   False, False, None),
+            ('Sans Département',                      'NO-DEPT',False, True,  None),
+            # Sous-départements IT (parent=DSI — héritent is_it via Department.save())
+            ('Maîtrise d\'Ouvrage',                  'MOA',    True,  False, 'DSI'),
+            ('SI / QoS',                             'SIQOS',  True,  False, 'DSI'),
         ]
-        for name, code, is_it, is_ph in depts_data:
+        created_depts = {}
+        # Créer les parents en premier
+        for name, code, is_it, is_ph, parent_code in depts_data:
+            if parent_code is not None:
+                continue
             dept, created = Department.objects.get_or_create(
                 code=code,
                 defaults={'name': name, 'is_it_department': is_it, 'is_placeholder': is_ph},
@@ -59,8 +66,27 @@ class Command(BaseCommand):
             if is_it and not dept.is_it_department:
                 dept.is_it_department = True
                 dept.save()
+            created_depts[code] = dept
             status = "Créé" if created else "Existant"
             self.stdout.write(f"  Département : {status} — {dept.name}")
+        # Puis les sous-départements
+        for name, code, is_it, is_ph, parent_code in depts_data:
+            if parent_code is None:
+                continue
+            parent = created_depts.get(parent_code)
+            dept, created = Department.objects.get_or_create(
+                code=code,
+                defaults={
+                    'name': name, 'is_it_department': is_it,
+                    'is_placeholder': is_ph, 'parent': parent
+                },
+            )
+            if parent and not dept.parent:
+                dept.parent = parent
+                dept.save()
+            created_depts[code] = dept
+            status = "Créé" if created else "Existant"
+            self.stdout.write(f"  Sous-dept   : {status} — {dept.name} (parent: {parent_code})")
 
     # ── Applications ──────────────────────────────────────────────────────────
     def _create_applications(self):
@@ -114,13 +140,25 @@ class Command(BaseCommand):
 
     # ── Catégories tickets ────────────────────────────────────────────────────
     def _create_categories(self):
+        from apps.accounts.models import Department
         from apps.tickets.models import Category, SubCategory
+
+        try:
+            moa = Department.objects.get(code='MOA')
+        except Department.DoesNotExist:
+            moa = None
+        try:
+            siqos = Department.objects.get(code='SIQOS')
+        except Department.DoesNotExist:
+            siqos = None
+
+        # (type, name, icon, color, it_team)
         cats = [
-            (Category.INCIDENT,     'Incident',            'bi-exclamation-triangle', 'danger'),
-            (Category.EVOLUTION,    "Demande d'Évolution", 'bi-lightbulb',            'primary'),
-            (Category.SUPPORT,      'Support Fonctionnel', 'bi-headset',              'info'),
-            (Category.PONCTUEL,     'Demande Ponctuelle',  'bi-clipboard-check',      'warning'),
-            (Category.TACHE_PROJET, 'Tâche Projet',        'bi-kanban',               'success'),
+            (Category.INCIDENT,     'Incident',            'bi-exclamation-triangle', 'danger',  siqos),
+            (Category.EVOLUTION,    "Demande d'Évolution", 'bi-lightbulb',            'primary', moa),
+            (Category.SUPPORT,      'Support Fonctionnel', 'bi-headset',              'info',    siqos),
+            (Category.PONCTUEL,     'Demande Ponctuelle',  'bi-clipboard-check',      'warning', siqos),
+            (Category.TACHE_PROJET, 'Tâche Projet',        'bi-kanban',               'success', moa),
         ]
         subs = {
             Category.INCIDENT:     ['Application indisponible', 'Erreur transaction', 'Panne interface', 'Lenteur'],
@@ -129,8 +167,13 @@ class Command(BaseCommand):
             Category.PONCTUEL:     ['Extraction données', 'Paramétrage exceptionnel', 'Déblocage'],
             Category.TACHE_PROJET: ['Développement', 'Tests', 'Documentation', 'Déploiement'],
         }
-        for type_, name, icon, color in cats:
-            cat, _ = Category.objects.get_or_create(type=type_, defaults={'name': name, 'icon': icon, 'color': color})
+        for type_, name, icon, color, it_team in cats:
+            cat, created = Category.objects.get_or_create(
+                type=type_, defaults={'name': name, 'icon': icon, 'color': color, 'it_team': it_team}
+            )
+            if not created and it_team and cat.it_team != it_team:
+                cat.it_team = it_team
+                cat.save(update_fields=['it_team'])
             for sub in subs.get(type_, []):
                 SubCategory.objects.get_or_create(category=cat, name=sub)
         self.stdout.write("  Catégories  : OK")

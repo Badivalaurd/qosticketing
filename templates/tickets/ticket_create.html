@@ -86,6 +86,7 @@
 
 {% block extra_js %}
 <script>
+const CATEGORY_TYPES = {{ category_types_json|safe }};
 (function() {
   const input = document.getElementById('id_title');
   if (!input) return;
@@ -102,18 +103,38 @@
   update();
 })();
 
-document.getElementById('id_category')?.addEventListener('change', function() {
-  fetch(`{% url 'tickets:subcategories_ajax' %}?category_id=${this.value}`)
-    .then(r => r.json())
-    .then(data => {
-      const sel = document.getElementById('id_sub_category');
-      if (!sel) return;
-      sel.innerHTML = '<option value="">---------</option>';
-      data.subcategories.forEach(s => {
-        const opt = new Option(s.name, s.id);
-        sel.add(opt);
+const NO_SLA_TYPES = ['EVOLUTION', 'TACHE_PROJET'];
+
+function updateCategoryInfo(categoryId, categoryType) {
+  // Subcategories
+  if (categoryId) {
+    fetch(`{% url 'tickets:subcategories_ajax' %}?category_id=${categoryId}`)
+      .then(r => r.json())
+      .then(data => {
+        const sel = document.getElementById('id_sub_category');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">---------</option>';
+        data.subcategories.forEach(s => sel.add(new Option(s.name, s.id)));
       });
-    });
+  }
+  // SLA notice
+  let notice = document.getElementById('sla-notice');
+  if (!notice) {
+    notice = document.createElement('div');
+    notice.id = 'sla-notice';
+    const catField = document.getElementById('id_category');
+    if (catField) catField.closest('.mb-3, .col-md-6')?.append(notice);
+  }
+  if (categoryType && NO_SLA_TYPES.includes(categoryType)) {
+    notice.innerHTML = '<div class="alert alert-info py-1 mt-1 small"><i class="bi bi-hourglass-split me-1"></i>Ce type de ticket <strong>n\'a pas de SLA</strong>. Une durée estimée sera définie par l\'agent après création.</div>';
+  } else {
+    notice.innerHTML = '';
+  }
+}
+
+document.getElementById('id_category')?.addEventListener('change', function() {
+  const catType = CATEGORY_TYPES[this.value] || '';
+  updateCategoryInfo(this.value, catType);
 });
 </script>
 {% endblock %}

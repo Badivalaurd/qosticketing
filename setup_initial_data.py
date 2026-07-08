@@ -16,7 +16,8 @@ from apps.knowledge_base.models import KBCategory
 
 def create_departments():
     print("Création des départements...")
-    depts_data = [
+    # Parents first, then children
+    parents_data = [
         # (name, code, is_it, is_placeholder)
         ('Département Informatique',              'DSI',    True,  False),
         ('Département Général',                   'DG',     False, False),
@@ -28,7 +29,7 @@ def create_departments():
         ('Sans Département',                      'NO-DEPT',False, True),
     ]
     objs = {}
-    for name, code, is_it, is_ph in depts_data:
+    for name, code, is_it, is_ph in parents_data:
         d, created = Department.objects.get_or_create(
             code=code, defaults={'name': name, 'is_it_department': is_it, 'is_placeholder': is_ph}
         )
@@ -38,6 +39,22 @@ def create_departments():
         objs[code] = d
         tag = '[IT]' if d.is_it_department else ('[provisoire]' if d.is_placeholder else '')
         print(f"  {'Créé' if created else 'Existant'}: {d} {tag}")
+
+    # Sous-départements IT (héritent is_it via Department.save())
+    children_data = [
+        ("Maîtrise d'Ouvrage", 'MOA',   'DSI'),
+        ('SI / QoS',           'SIQOS', 'DSI'),
+    ]
+    for name, code, parent_code in children_data:
+        parent = objs.get(parent_code)
+        d, created = Department.objects.get_or_create(
+            code=code, defaults={'name': name, 'is_it_department': True, 'parent': parent}
+        )
+        if not created and parent and not d.parent:
+            d.parent = parent
+            d.save()
+        objs[code] = d
+        print(f"  {'Créé' if created else 'Existant'}: {d} [IT sous-dept de {parent_code}]")
     return objs
 
 
@@ -63,14 +80,18 @@ def create_users(depts):
             print(f"  Existant: {username}")
 
 
-def create_categories():
+def create_categories(depts):
     print("Création des catégories...")
+    moa = depts.get('MOA')
+    siqos = depts.get('SIQOS')
+
+    # (type, name, icon, color, it_team)
     cats = [
-        (Category.INCIDENT,     'Incident',             'bi-exclamation-triangle', 'danger'),
-        (Category.EVOLUTION,    "Demande d'Évolution",  'bi-lightbulb',            'primary'),
-        (Category.SUPPORT,      'Support Fonctionnel',  'bi-headset',              'info'),
-        (Category.PONCTUEL,     'Demande Ponctuelle',   'bi-clipboard-check',      'warning'),
-        (Category.TACHE_PROJET, 'Tâche Projet',         'bi-kanban',               'success'),
+        (Category.INCIDENT,     'Incident',             'bi-exclamation-triangle', 'danger',  siqos),
+        (Category.EVOLUTION,    "Demande d'Évolution",  'bi-lightbulb',            'primary', moa),
+        (Category.SUPPORT,      'Support Fonctionnel',  'bi-headset',              'info',    siqos),
+        (Category.PONCTUEL,     'Demande Ponctuelle',   'bi-clipboard-check',      'warning', siqos),
+        (Category.TACHE_PROJET, 'Tâche Projet',         'bi-kanban',               'success', moa),
     ]
     subs = {
         Category.INCIDENT:     ['Application indisponible', 'Erreur transaction', 'Panne interface', 'Lenteur'],
@@ -79,10 +100,13 @@ def create_categories():
         Category.PONCTUEL:     ['Extraction données', 'Paramétrage exceptionnel', 'Déblocage'],
         Category.TACHE_PROJET: ['Développement', 'Tests', 'Documentation', 'Déploiement'],
     }
-    for type_, name, icon, color in cats:
-        cat, _ = Category.objects.get_or_create(type=type_, defaults={
-            'name': name, 'icon': icon, 'color': color
+    for type_, name, icon, color, it_team in cats:
+        cat, created = Category.objects.get_or_create(type=type_, defaults={
+            'name': name, 'icon': icon, 'color': color, 'it_team': it_team
         })
+        if not created and it_team and cat.it_team != it_team:
+            cat.it_team = it_team
+            cat.save(update_fields=['it_team'])
         for sub_name in subs.get(type_, []):
             SubCategory.objects.get_or_create(category=cat, name=sub_name)
     print("  Catégories et sous-catégories créées.")
@@ -141,7 +165,7 @@ if __name__ == '__main__':
     print("=== Initialisation des données QoS Ticketing ===\n")
     depts = create_departments()
     create_users(depts)
-    create_categories()
+    create_categories(depts)
     create_applications(depts)
     create_sla_configs()
     create_kb_categories()

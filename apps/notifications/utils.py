@@ -154,32 +154,40 @@ def send_project_notification(project, event, recipient=None, extra_context=None
 def _recipients_for_created(ticket):
     """
     Routage à la création :
-    - Si le ticket est destiné au département IT → admins + agents SI
-    - Sinon → manager du département cible
+    - ticket.target_department set (non-IT dept) → manager du dept cible + admins
+    - ticket IT avec category.it_team set → manager du sous-dept IT (MOA/SI-QoS) + admins
+    - sinon → admins + agents de support (routage IT général)
     """
-    from apps.accounts.models import User, Department
+    from apps.accounts.models import User
     recipients = set()
+    admins = list(User.objects.filter(role=User.ROLE_ADMIN, is_active=True))
 
-    target_dept = ticket.target_department or ticket.department
-    is_it_target = target_dept and target_dept.is_it_department if target_dept else False
-
-    if is_it_target or target_dept is None:
-        # Notifier admins et agents SI
+    if ticket.target_department and not ticket.target_department.is_it_department:
+        # Ticket explicitement redirigé vers un dept non-IT
         for u in User.objects.filter(
-            role__in=[User.ROLE_ADMIN, User.ROLE_AGENT],
-            is_active=True,
+            role=User.ROLE_MANAGER, department=ticket.target_department, is_active=True
         ):
             recipients.add(u)
+        recipients.update(admins)
+        return recipients
+
+    # Ticket IT — vérifier si la catégorie a un sous-département responsable
+    it_team = None
+    if ticket.category_id:
+        try:
+            it_team = ticket.category.it_team
+        except Exception:
+            pass
+
+    if it_team and it_team.manager:
+        # Notifier le manager du sous-département IT responsable
+        recipients.add(it_team.manager)
+        recipients.update(admins)
     else:
-        # Notifier le manager du département cible
+        # Routage général IT : admins + agents de support
         for u in User.objects.filter(
-            role=User.ROLE_MANAGER,
-            department=target_dept,
-            is_active=True,
+            role__in=[User.ROLE_ADMIN, User.ROLE_AGENT], is_active=True
         ):
-            recipients.add(u)
-        # + les admins toujours en copie
-        for u in User.objects.filter(role=User.ROLE_ADMIN, is_active=True):
             recipients.add(u)
 
     return recipients

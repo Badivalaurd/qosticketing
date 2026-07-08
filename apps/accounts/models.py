@@ -47,6 +47,16 @@ class Department(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        # Propagate IT rights from parent department
+        if self.parent_id and not self.is_it_department:
+            if Department.objects.filter(pk=self.parent_id, is_it_department=True).exists():
+                self.is_it_department = True
+        super().save(*args, **kwargs)
+        # Push IT flag to direct children
+        if self.is_it_department:
+            self.children.filter(is_it_department=False).update(is_it_department=True)
+
     @property
     def accepts_tickets(self):
         """Vrai si ce département peut recevoir des tickets (IT toujours, autres si activés)."""

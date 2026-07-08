@@ -97,6 +97,11 @@ class Category(models.Model):
     icon = models.CharField('Icône Bootstrap', max_length=50, default='bi-ticket')
     color = models.CharField('Couleur CSS', max_length=30, default='primary')
     is_active = models.BooleanField('Actif', default=True)
+    it_team = models.ForeignKey(
+        'accounts.Department', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='category_team', verbose_name='Sous-département IT responsable',
+        help_text='Sous-département IT qui traite ce type de ticket (MOA, SI/QoS…).'
+    )
 
     class Meta:
         verbose_name = 'Catégorie'
@@ -260,6 +265,12 @@ class Ticket(models.Model):
     # ---- Rejet / Annulation ----
     rejection_reason = models.TextField('Motif de rejet', blank=True)
 
+    # ---- Durée estimée (Évolution / Tâche Projet — pas de SLA) ----
+    estimated_duration_hours = models.PositiveIntegerField(
+        'Durée estimée (heures)', null=True, blank=True,
+        help_text='Durée estimative de traitement. Modifiable par agent de support et manager uniquement.'
+    )
+
     # ---- Lié à un projet ----
     project = models.ForeignKey(
         'projects.Project', null=True, blank=True, on_delete=models.SET_NULL,
@@ -306,9 +317,9 @@ class Ticket(models.Model):
 
     @property
     def has_sla(self):
-        """Faux pour les Tâches Projet — pas de SLA applicable."""
+        """Faux pour Évolution et Tâche Projet — durée estimée à la place du SLA."""
         if self.category_id:
-            return self.category.type != Category.TACHE_PROJET
+            return self.category.type not in (Category.EVOLUTION, Category.TACHE_PROJET)
         return True
 
     def _init_sla(self):
@@ -516,11 +527,12 @@ class Ticket(models.Model):
             }
             return transitions_tech.get(self.status, [])
 
-        # MANAGER : gestion de son département
+        # MANAGER : gestion de son département ou sous-département IT responsable
         if role == U.ROLE_MANAGER:
             is_my_dept = (
                 self.target_department == user.department or
-                self.department == user.department
+                self.department == user.department or
+                (self.category_id and self.category.it_team_id == user.department_id)
             )
             if not is_my_dept:
                 return []
@@ -564,7 +576,8 @@ class Ticket(models.Model):
         if user.role == U.ROLE_MANAGER:
             is_my_dept = (
                 self.target_department == user.department or
-                self.department == user.department
+                self.department == user.department or
+                (self.category_id and self.category.it_team_id == user.department_id)
             )
             return is_my_dept and self.status in [self.STATUS_NOUVEAU, self.STATUS_AFFECTE]
         return False
@@ -580,9 +593,13 @@ class Ticket(models.Model):
             if user.is_it_member:
                 return True
             return self.department == user.department
-        # Manager : son département
+        # Manager : son département ou sous-département IT responsable
         if user.role == U.ROLE_MANAGER:
-            return self.target_department == user.department or self.department == user.department
+            if self.target_department == user.department or self.department == user.department:
+                return True
+            if self.category_id and self.category.it_team_id == user.department_id:
+                return True
+            return False
         # Demandeur : uniquement les tickets créés par des membres de son équipe
         if user.role == U.ROLE_DEMANDEUR:
             if not user.department_id:

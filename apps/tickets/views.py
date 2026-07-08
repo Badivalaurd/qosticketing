@@ -10,10 +10,12 @@ from .models import Ticket, Comment, Attachment, TicketHistory, Category, SubCat
 from .forms import (
     TicketCreateForm, TicketEditForm, TicketAssignForm, TicketRequestInfoForm,
     TicketRespondInfoForm, TicketTransferDeptForm,
-    TicketStatusForm, TicketPriorityForm, CommentForm, AttachmentForm, TicketFilterForm
+    TicketStatusForm, TicketPriorityForm, CommentForm, AttachmentForm,
+    TicketFilterForm, TicketDurationForm
 )
 from apps.notifications.utils import send_ticket_notification
 from apps.accounts.models import User
+import json
 import re
 
 
@@ -56,11 +58,13 @@ def get_tickets_for_user(user, tab='it'):
             return qs.filter(department=user.department)
         return qs.filter(created_by=user)
 
-    # Manager → son département (cible ou demandeur), sauf si NO-DEPT
+    # Manager → son département + tickets routés à son IT sub-dept via category.it_team
     if user.role == User.ROLE_MANAGER:
         if user.department and not user.department.is_placeholder:
             return qs.filter(
-                Q(target_department=user.department) | Q(department=user.department)
+                Q(target_department=user.department) |
+                Q(department=user.department) |
+                Q(category__it_team=user.department)
             ).distinct()
         return qs.filter(created_by=user)
 
@@ -263,6 +267,20 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
             (user.role == User.ROLE_AGENT and ticket.status not in Ticket.ADMIN_ONLY_STATUSES) or
             (ticket.status == Ticket.STATUS_NOUVEAU and ticket.created_by == user)
         )
+
+        # Durée estimée : visible et modifiable uniquement pour agent/admin/manager
+        # sur les tickets Évolution et Tâche Projet (pas de SLA)
+        no_sla_types = (Category.EVOLUTION, Category.TACHE_PROJET)
+        ctx['show_duration'] = (
+            ticket.category_id and ticket.category.type in no_sla_types
+        )
+        ctx['can_set_duration'] = (
+            ctx['show_duration'] and
+            not locked_for_user and
+            user.role in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_MANAGER]
+        )
+        if ctx['can_set_duration']:
+            ctx['duration_form'] = TicketDurationForm(ticket=ticket)
         return ctx
 
 
@@ -292,7 +310,15 @@ def ticket_create(request):
             return redirect('tickets:detail', number=ticket.number)
     else:
         form = TicketCreateForm(user=request.user)
-    return render(request, 'tickets/ticket_create.html', {'form': form})
+
+    # Map category_id → type for JS (no-SLA detection)
+    category_types_json = json.dumps({
+        str(c.pk): c.type for c in Category.objects.filter(is_active=True)
+    })
+    return render(request, 'tickets/ticket_create.html', {
+        'form': form,
+        'category_types_json': category_types_json,
+    })
 
 
 @login_required
@@ -583,6 +609,38 @@ def add_attachment(request, number):
                 action=f"Pièce jointe : {f.name}"
             )
         messages.success(request, f"{len(files)} fichier(s) ajouté(s).")
+    return redirect('tickets:detail', number=number)
+
+
+@login_required
+def ticket_set_duration(request, number):
+    """Définir la durée estimée de traitement (agent/manager/admin, Évolution et Tâche Projet)."""
+    ticket = get_object_or_404(Ticket, number=number)
+    user = request.user
+
+    if user.role not in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_MANAGER]:
+        messages.error(request, "Non autorisé.")
+        return redirect('tickets:detail', number=number)
+
+    no_sla_types = (Category.EVOLUTION, Category.TACHE_PROJET)
+    if not ticket.category_id or ticket.category.type not in no_sla_types:
+        messages.error(request, "La durée estimée s'applique uniquement aux tickets Évolution et Tâche Projet.")
+        return redirect('tickets:detail', number=number)
+
+    if request.method == 'POST':
+        form = TicketDurationForm(ticket=ticket, data=request.POST)
+        if form.is_valid():
+            old = ticket.estimated_duration_hours
+            new = form.cleaned_data.get('estimated_duration_hours')
+            ticket.estimated_duration_hours = new
+            ticket.save(update_fields=['estimated_duration_hours', 'updated_at'])
+            TicketHistory.objects.create(
+                ticket=ticket, user=user,
+                action=f"Durée estimée : {old or '—'}h → {new or '—'}h",
+                field_name='estimated_duration_hours',
+                old_value=str(old or ''), new_value=str(new or ''),
+            )
+            messages.success(request, "Durée estimée mise à jour.")
     return redirect('tickets:detail', number=number)
 
 

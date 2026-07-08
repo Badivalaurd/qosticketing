@@ -19,6 +19,7 @@ urlpatterns = [
     path('<str:number>/respond-info/', views.ticket_respond_info, name='respond_info'),
     path('<str:number>/transfer-dept/', views.ticket_transfer_dept, name='transfer_dept'),
     path('<str:number>/priority/', views.ticket_change_priority, name='change_priority'),
+    path('<str:number>/duration/', views.ticket_set_duration, name='set_duration'),
     path('<str:number>/comment/', views.add_comment, name='add_comment'),
     path('<str:number>/attach/', views.add_attachment, name='add_attachment'),
 ]

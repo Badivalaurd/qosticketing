@@ -291,6 +291,26 @@ class TicketPriorityForm(forms.Form):
         self.helper.add_input(Submit('submit', 'Appliquer', css_class='btn btn-warning btn-sm'))
 
 
+class TicketDurationForm(forms.Form):
+    """Formulaire de saisie de la durée estimée (agent/manager, Évolution/Tâche Projet)."""
+    estimated_duration_hours = forms.IntegerField(
+        label='Durée estimée (heures)',
+        min_value=1,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Ex. 8',
+        }),
+        help_text='Laisser vide pour effacer la durée estimée.',
+    )
+
+    def __init__(self, ticket, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['estimated_duration_hours'].initial = ticket.estimated_duration_hours
+        self.helper = FormHelper()
+        self.helper.add_input(Submit('submit', 'Enregistrer', css_class='btn btn-primary btn-sm'))
+
+
 class SLAConfigForm(forms.ModelForm):
     class Meta:
         model = SLAConfig
