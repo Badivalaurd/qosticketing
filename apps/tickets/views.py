@@ -293,6 +293,10 @@ def ticket_create(request):
             ticket.created_by = request.user
             if request.user.department and not ticket.department:
                 ticket.department = request.user.department
+            # EVOLUTION / TACHE_PROJET → toujours IT (MOA), ignorer un éventuel dept cible
+            it_only = (Category.EVOLUTION, Category.TACHE_PROJET)
+            if ticket.category_id and ticket.category.type in it_only:
+                ticket.target_department = None
             ticket.save()
             TicketHistory.objects.create(
                 ticket=ticket, user=request.user,

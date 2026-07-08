@@ -103,10 +103,11 @@ const CATEGORY_TYPES = {{ category_types_json|safe }};
   update();
 })();
 
-const NO_SLA_TYPES = ['EVOLUTION', 'TACHE_PROJET'];
+// Types IT-only : toujours routés vers IT (MOA), pas de département cible autorisé
+const IT_ONLY_TYPES = ['EVOLUTION', 'TACHE_PROJET'];
 
 function updateCategoryInfo(categoryId, categoryType) {
-  // Subcategories
+  // 1. Sous-catégories
   if (categoryId) {
     fetch(`{% url 'tickets:subcategories_ajax' %}?category_id=${categoryId}`)
       .then(r => r.json())
@@ -117,7 +118,20 @@ function updateCategoryInfo(categoryId, categoryType) {
         data.subcategories.forEach(s => sel.add(new Option(s.name, s.id)));
       });
   }
-  // SLA notice
+
+  // 2. Masquer / afficher le champ "Envoyer vers un autre département"
+  const targetSel = document.getElementById('id_target_department');
+  if (targetSel) {
+    const targetCol = targetSel.closest('.col-md-6, .mb-3, .form-group');
+    const isItOnly = categoryType && IT_ONLY_TYPES.includes(categoryType);
+    if (targetCol) targetCol.style.display = isItOnly ? 'none' : '';
+    if (isItOnly) {
+      targetSel.value = '';  // effacer la sélection
+      targetSel.dispatchEvent(new Event('change'));
+    }
+  }
+
+  // 3. Notice no-SLA
   let notice = document.getElementById('sla-notice');
   if (!notice) {
     notice = document.createElement('div');
@@ -125,8 +139,8 @@ function updateCategoryInfo(categoryId, categoryType) {
     const catField = document.getElementById('id_category');
     if (catField) catField.closest('.mb-3, .col-md-6')?.append(notice);
   }
-  if (categoryType && NO_SLA_TYPES.includes(categoryType)) {
-    notice.innerHTML = '<div class="alert alert-info py-1 mt-1 small"><i class="bi bi-hourglass-split me-1"></i>Ce type de ticket <strong>n\'a pas de SLA</strong>. Une durée estimée sera définie par l\'agent après création.</div>';
+  if (categoryType && IT_ONLY_TYPES.includes(categoryType)) {
+    notice.innerHTML = '<div class="alert alert-info py-1 mt-1 small"><i class="bi bi-hourglass-split me-1"></i>Ce type est traité par l\'équipe IT (MOA) — <strong>pas de SLA</strong>. Une durée estimée sera définie après création.</div>';
   } else {
     notice.innerHTML = '';
   }
