@@ -79,6 +79,18 @@ def dashboard(request):
             status=Ticket.STATUS_NOUVEAU, assigned_to=None
         ).order_by('priority', 'created_at')[:10]
 
+    # ---- File d'attente manager (tickets NOUVEAU qu'il doit affecter) ----
+    manager_queue = []
+    manager_queue_count = 0
+    if user.role == User.ROLE_MANAGER and user.department:
+        manager_queue = list(
+            tickets_qs.filter(
+                status=Ticket.STATUS_NOUVEAU, assigned_to=None
+            ).select_related('category', 'created_by', 'department')
+            .order_by('priority', 'created_at')[:20]
+        )
+        manager_queue_count = len(manager_queue)
+
     # ---- Mes tickets en cours (technicien) ----
     my_assigned = []
     if user.role == User.ROLE_TECHNICIEN:
@@ -121,6 +133,8 @@ def dashboard(request):
         'trend_labels_json': json.dumps(trend_labels),
         'trend_data_json': json.dumps(trend_data),
         'overdue_tickets': overdue,
+        'manager_queue': manager_queue,
+        'manager_queue_count': manager_queue_count,
         'show_agent_charts': show_agent_charts,
         'trend_resolved_json': json.dumps(trend_resolved_data),
         'sla_in': sla_in,

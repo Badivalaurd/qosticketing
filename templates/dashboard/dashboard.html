@@ -58,11 +58,26 @@
     <div class="kpi-card">
       <div class="kpi-icon blue"><i class="bi bi-person-check"></i></div>
       <div>
-        <div class="kpi-value">{{ my_tickets }}</div>
+        <div class="kpi-value">{{ my_open }}</div>
         <div class="kpi-label">Mes tickets</div>
       </div>
     </div>
   </div>
+  {% if manager_queue_count %}
+  <div class="col-6 col-md-4 col-xl-2-4">
+    <a href="{% url 'tickets:list' %}?status=NOUVEAU" class="text-decoration-none">
+      <div class="kpi-card border-warning border-2" style="background:rgba(255,193,7,.08)">
+        <div class="kpi-icon" style="background:rgba(255,193,7,.2);color:#e6a800">
+          <i class="bi bi-inbox-fill"></i>
+        </div>
+        <div>
+          <div class="kpi-value text-warning">{{ manager_queue_count }}</div>
+          <div class="kpi-label">À affecter</div>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endif %}
 </div>
 
 <div class="row g-3">
@@ -187,6 +202,75 @@
   </div>
   {% endif %}
   <!-- ── fin graphes agent/admin ── -->
+
+  <!-- ── File d'attente manager : tickets NOUVEAU à affecter ── -->
+  {% if manager_queue_count %}
+  <div class="col-12">
+    <div class="card border-warning border-2">
+      <div class="card-header d-flex justify-content-between align-items-center bg-warning bg-opacity-10">
+        <span>
+          <i class="bi bi-inbox-fill me-2 text-warning"></i>
+          <strong>Tickets en attente d'affectation</strong>
+          <span class="badge bg-warning text-dark ms-2">{{ manager_queue_count }}</span>
+        </span>
+        <a href="{% url 'tickets:list' %}?status=NOUVEAU" class="btn btn-sm btn-outline-warning">
+          Voir tous
+        </a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3">Numéro</th>
+                <th>Titre</th>
+                <th>Catégorie</th>
+                <th>Équipe</th>
+                <th>Priorité</th>
+                <th>Demandeur</th>
+                <th>Créé le</th>
+                <th class="text-end pe-3">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in manager_queue %}
+              <tr>
+                <td class="ps-3">
+                  <a href="{% url 'tickets:detail' t.number %}"
+                     class="ticket-number text-decoration-none text-orange fw-bold">{{ t.number }}</a>
+                </td>
+                <td>
+                  <a href="{% url 'tickets:detail' t.number %}"
+                     class="text-decoration-none text-dark fw-500">{{ t.title|truncatechars:50 }}</a>
+                </td>
+                <td><span class="badge bg-light text-dark">{{ t.category.name }}</span></td>
+                <td>
+                  {% if t.category.it_team %}
+                  <span class="badge bg-primary bg-opacity-75">{{ t.category.it_team.code }}</span>
+                  {% else %}
+                  <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="badge badge-priority-{{ t.priority }} text-white">{{ t.get_priority_display }}</span>
+                </td>
+                <td class="small">{{ t.created_by.get_full_name|default:t.created_by.username }}</td>
+                <td class="small text-muted">{{ t.created_at|date:"d/m/Y H:i" }}</td>
+                <td class="text-end pe-3">
+                  <a href="{% url 'tickets:detail' t.number %}#assign"
+                     class="btn btn-sm btn-primary">
+                    <i class="bi bi-person-plus me-1"></i>Affecter
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Recent tickets -->
   <div class="col-12">
