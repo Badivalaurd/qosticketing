@@ -72,24 +72,19 @@ def dashboard(request):
         Q(sla_response_deadline__lt=now) | Q(sla_resolution_deadline__lt=now)
     ).filter(status__in=open_statuses).order_by('sla_resolution_deadline')[:5]
 
-    # ---- File d'attente agent (tickets NOUVEAU non affectés) ----
-    agent_queue = []
-    if user.role in [User.ROLE_ADMIN, User.ROLE_AGENT]:
-        agent_queue = tickets_qs.filter(
-            status=Ticket.STATUS_NOUVEAU, assigned_to=None
-        ).order_by('priority', 'created_at')[:10]
-
-    # ---- File d'attente manager (tickets NOUVEAU qu'il doit affecter) ----
-    manager_queue = []
-    manager_queue_count = 0
-    if user.role == User.ROLE_MANAGER and user.department:
-        manager_queue = list(
+    # ---- File d'attente "À affecter" (admin, agent, manager) ----
+    pending_queue = []
+    pending_queue_count = 0
+    if user.role in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_MANAGER]:
+        pending_queue = list(
             tickets_qs.filter(
                 status=Ticket.STATUS_NOUVEAU, assigned_to=None
             ).select_related('category', 'created_by', 'department')
             .order_by('priority', 'created_at')[:20]
         )
-        manager_queue_count = len(manager_queue)
+        pending_queue_count = len(pending_queue)
+    # Garder agent_queue pour rétro-compatibilité éventuelle
+    agent_queue = pending_queue
 
     # ---- Mes tickets en cours (technicien) ----
     my_assigned = []
@@ -133,8 +128,8 @@ def dashboard(request):
         'trend_labels_json': json.dumps(trend_labels),
         'trend_data_json': json.dumps(trend_data),
         'overdue_tickets': overdue,
-        'manager_queue': manager_queue,
-        'manager_queue_count': manager_queue_count,
+        'pending_queue': pending_queue,
+        'pending_queue_count': pending_queue_count,
         'show_agent_charts': show_agent_charts,
         'trend_resolved_json': json.dumps(trend_resolved_data),
         'sla_in': sla_in,
