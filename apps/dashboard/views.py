@@ -73,9 +73,10 @@ def dashboard(request):
     ).filter(status__in=open_statuses).order_by('sla_resolution_deadline')[:5]
 
     # ---- File d'attente "À affecter" (admin, agent, manager) ----
+    show_pending_queue = user.role in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_MANAGER]
     pending_queue = []
     pending_queue_count = 0
-    if user.role in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_MANAGER]:
+    if show_pending_queue:
         pending_queue = list(
             tickets_qs.filter(
                 status=Ticket.STATUS_NOUVEAU, assigned_to=None
@@ -130,6 +131,7 @@ def dashboard(request):
         'overdue_tickets': overdue,
         'pending_queue': pending_queue,
         'pending_queue_count': pending_queue_count,
+        'show_pending_queue': show_pending_queue,
         'show_agent_charts': show_agent_charts,
         'trend_resolved_json': json.dumps(trend_resolved_data),
         'sla_in': sla_in,

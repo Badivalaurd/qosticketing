@@ -390,10 +390,8 @@ def ticket_change_status(request, number):
 
             # Dates clés
             if new_status == Ticket.STATUS_AFFECTE and not ticket.assigned_at:
-                ticket.assigned_at = timezone.now()
-                # Vérifier SLA prise en charge
-                if ticket.sla_response_deadline and timezone.now() > ticket.sla_response_deadline:
-                    ticket.sla_response_exceeded = True
+                # Démarre le SLA traitement (et enregistre le dépassement prise en charge si besoin)
+                ticket.reset_sla_on_assign()
 
             if new_status == Ticket.STATUS_EN_COURS and not ticket.assigned_at:
                 ticket.assigned_at = timezone.now()

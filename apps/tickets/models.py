@@ -323,22 +323,28 @@ class Ticket(models.Model):
         return True
 
     def _init_sla(self):
+        """À la création : démarre uniquement le SLA prise en charge (réponse).
+        Le SLA traitement ne démarrera qu'à l'affectation."""
         if not self.has_sla:
             return
         sla = SLAConfig.get_for_priority(self.priority)
-        now = timezone.now()
-        self.sla_response_deadline = now + timedelta(minutes=sla.response_time_minutes)
-        self.sla_resolution_deadline = now + timedelta(minutes=sla.resolution_time_minutes)
+        self.sla_response_deadline = timezone.now() + timedelta(minutes=sla.response_time_minutes)
+        self.sla_resolution_deadline = None  # démarre à l'affectation
 
     def reset_sla_for_priority(self, new_priority):
-        """Réinitialise les SLA selon la nouvelle priorité (depuis maintenant)."""
+        """Réinitialise les SLA selon la nouvelle priorité depuis maintenant.
+        - Avant affectation : recalcule uniquement sla_response_deadline.
+        - Après affectation : recalcule uniquement sla_resolution_deadline."""
         self.priority = new_priority
         if not self.has_sla:
             return
         sla = SLAConfig.get_for_priority(new_priority)
         now = timezone.now()
-        self.sla_response_deadline = now + timedelta(minutes=sla.response_time_minutes)
-        self.sla_resolution_deadline = now + timedelta(minutes=sla.resolution_time_minutes)
+        if not self.assigned_at:
+            self.sla_response_deadline = now + timedelta(minutes=sla.response_time_minutes)
+            self.sla_resolution_deadline = None
+        else:
+            self.sla_resolution_deadline = now + timedelta(minutes=sla.resolution_time_minutes)
         self.sla_response_exceeded = False
         self.sla_resolution_exceeded = False
         self.resolved_out_of_sla = False
@@ -350,11 +356,30 @@ class Ticket(models.Model):
 
     def reset_sla_on_assign(self):
         """
-        Réinitialise le SLA depuis le moment de l'affectation.
-        Appelé automatiquement à chaque affectation/réaffectation (logique JIRA).
+        Appelé à chaque affectation/réaffectation.
+        - Enregistre le dépassement de prise en charge si la deadline était passée.
+        - Démarre (ou redémarre) le SLA traitement depuis maintenant.
         """
-        self.reset_sla_for_priority(self.priority)
-        self.assigned_at = timezone.now()
+        if not self.has_sla:
+            self.assigned_at = timezone.now()
+            return
+        now = timezone.now()
+        # Vérifier si la prise en charge était hors délai
+        if self.sla_response_deadline and now > self.sla_response_deadline:
+            self.sla_response_exceeded = True
+        # La prise en charge est terminée : effacer la deadline de réponse
+        self.sla_response_deadline = None
+        # Démarrer le SLA traitement depuis maintenant
+        sla = SLAConfig.get_for_priority(self.priority)
+        self.sla_resolution_deadline = now + timedelta(minutes=sla.resolution_time_minutes)
+        self.sla_resolution_exceeded = False
+        self.resolved_out_of_sla = False
+        self.sla_paused_at = None
+        self.sla_pause_minutes = 0
+        self.sla_warning_1h_sent = False
+        self.sla_warning_30m_sent = False
+        self.sla_warning_10m_sent = False
+        self.assigned_at = now
 
     # ---- SLA helpers ----
     def pause_sla(self):
@@ -375,13 +400,17 @@ class Ticket(models.Model):
             self.sla_paused_at = None
 
     def check_and_update_sla(self):
-        """Vérifie les dépassements SLA. Retourne True si SLA mis à jour."""
+        """Vérifie les dépassements SLA. Retourne True si au moins un flag a changé.
+        - SLA réponse  : clock depuis la création, s'arrête à l'affectation.
+        - SLA traitement : clock depuis l'affectation, indépendant du SLA réponse."""
         now = timezone.now()
         changed = False
+        # Prise en charge : dépassée si deadline passée ET ticket pas encore affecté
         if (self.sla_response_deadline and not self.sla_response_exceeded and
-                self.status not in [self.STATUS_NOUVEAU] and now > self.sla_response_deadline):
+                not self.assigned_at and now > self.sla_response_deadline):
             self.sla_response_exceeded = True
             changed = True
+        # Traitement : dépassé si deadline passée ET ticket dans un statut final
         if (self.sla_resolution_deadline and not self.sla_resolution_exceeded and
                 self.status in self.SLA_STOP_STATUSES and now > self.sla_resolution_deadline):
             self.sla_resolution_exceeded = True
@@ -456,14 +485,15 @@ class Ticket(models.Model):
 
     @property
     def resolution_sla_percent(self):
-        """Pourcentage du temps SLA traitement écoulé (0-100+)."""
-        if not self.sla_resolution_deadline or self.status in self.SLA_STOP_STATUSES:
+        """Pourcentage du temps SLA traitement écoulé (0-100+).
+        Démarre à l'affectation, jamais à la création."""
+        if not self.sla_resolution_deadline or not self.assigned_at or self.status in self.SLA_STOP_STATUSES:
             return None
         sla = SLAConfig.get_for_priority(self.priority)
         total = sla.resolution_time_minutes * 60
         if total == 0:
             return 100
-        elapsed = (timezone.now() - self.created_at).total_seconds() - (self.sla_pause_minutes * 60)
+        elapsed = (timezone.now() - self.assigned_at).total_seconds() - (self.sla_pause_minutes * 60)
         return min(int(elapsed * 100 / total), 150)
 
     @property

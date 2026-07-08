@@ -123,6 +123,8 @@
                 {% else %}
                   <span class="text-muted small">{{ ticket.sla_resolution_deadline|date:"d/m H:i" }}</span>
                 {% endif %}
+              {% elif not ticket.assigned_at %}
+                <span class="text-muted small fst-italic"><i class="bi bi-hourglass me-1"></i>Démarrera à l'affectation</span>
               {% endif %}
             </div>
             <div class="sla-bar {% if ticket.is_resolution_overdue %}sla-danger{% elif ticket.resolution_sla_percent and ticket.resolution_sla_percent > 80 %}sla-warning{% else %}sla-ok{% endif %}">

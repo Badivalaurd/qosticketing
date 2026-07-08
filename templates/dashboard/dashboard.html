@@ -63,15 +63,15 @@
       </div>
     </div>
   </div>
-  {% if pending_queue_count %}
+  {% if show_pending_queue %}
   <div class="col-6 col-md-4 col-xl-2-4">
     <a href="{% url 'tickets:list' %}?status=NOUVEAU" class="text-decoration-none">
-      <div class="kpi-card border-warning border-2" style="background:rgba(255,193,7,.08)">
-        <div class="kpi-icon" style="background:rgba(255,193,7,.2);color:#e6a800">
+      <div class="kpi-card {% if pending_queue_count %}border-warning border-2{% endif %}" style="{% if pending_queue_count %}background:rgba(255,193,7,.08){% endif %}">
+        <div class="kpi-icon" style="background:{% if pending_queue_count %}rgba(255,193,7,.2);color:#e6a800{% else %}rgba(108,117,125,.1);color:#6c757d{% endif %}">
           <i class="bi bi-inbox-fill"></i>
         </div>
         <div>
-          <div class="kpi-value text-warning">{{ pending_queue_count }}</div>
+          <div class="kpi-value {% if pending_queue_count %}text-warning{% else %}text-muted{% endif %}">{{ pending_queue_count }}</div>
           <div class="kpi-label">À affecter</div>
         </div>
       </div>
@@ -204,20 +204,25 @@
   <!-- ── fin graphes agent/admin ── -->
 
   <!-- ── File d'attente à affecter (admin / agent / manager) ── -->
-  {% if pending_queue_count %}
+  {% if show_pending_queue %}
   <div class="col-12">
-    <div class="card border-warning border-2">
-      <div class="card-header d-flex justify-content-between align-items-center bg-warning bg-opacity-10">
+    <div class="card {% if pending_queue_count %}border-warning border-2{% endif %}">
+      <div class="card-header d-flex justify-content-between align-items-center {% if pending_queue_count %}bg-warning bg-opacity-10{% endif %}">
         <span>
-          <i class="bi bi-inbox-fill me-2 text-warning"></i>
+          <i class="bi bi-inbox-fill me-2 {% if pending_queue_count %}text-warning{% else %}text-muted{% endif %}"></i>
           <strong>Tickets en attente d'affectation</strong>
+          {% if pending_queue_count %}
           <span class="badge bg-warning text-dark ms-2">{{ pending_queue_count }}</span>
+          {% else %}
+          <span class="badge bg-secondary ms-2">0</span>
+          {% endif %}
         </span>
-        <a href="{% url 'tickets:list' %}?status=NOUVEAU" class="btn btn-sm btn-outline-warning">
+        <a href="{% url 'tickets:list' %}?status=NOUVEAU" class="btn btn-sm btn-outline-secondary">
           Voir tous
         </a>
       </div>
       <div class="card-body p-0">
+        {% if pending_queue %}
         <div class="table-responsive">
           <table class="table table-hover mb-0 align-middle">
             <thead class="table-light">
@@ -267,6 +272,12 @@
             </tbody>
           </table>
         </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-check-circle fs-3 text-success d-block mb-2"></i>
+          Aucun ticket en attente d'affectation
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
