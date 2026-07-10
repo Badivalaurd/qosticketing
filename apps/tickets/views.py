@@ -473,7 +473,7 @@ def ticket_assign(request, number):
             if old_assignee and old_assignee != ticket.assigned_to:
                 send_ticket_notification(ticket, 'unassigned', recipient=old_assignee)
             if ticket.assigned_to:
-                send_ticket_notification(ticket, 'assigned')
+                send_ticket_notification(ticket, 'assigned', performer=user)
             messages.success(request, f"Ticket affecté à {ticket.assigned_to} — SLA réinitialisé." if ticket.assigned_to else "Ticket désaffecté.")
     return redirect('tickets:detail', number=number)
 
@@ -506,7 +506,7 @@ def ticket_takeover(request, number):
         )
         if old_assignee:
             send_ticket_notification(ticket, 'unassigned', recipient=old_assignee)
-        send_ticket_notification(ticket, 'assigned')
+        send_ticket_notification(ticket, 'assigned', performer=user)
         messages.success(request, "Vous avez pris en charge ce ticket.")
     return redirect('tickets:detail', number=number)
 

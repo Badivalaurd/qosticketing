@@ -2,17 +2,19 @@ from django.urls import reverse
 from .models import Notification
 
 
-def send_ticket_notification(ticket, event, recipient=None):
+def send_ticket_notification(ticket, event, recipient=None, performer=None):
     """
     Crée les notifications in-app ET déclenche les emails.
 
     Routage :
     - created       → admins + agents SI (si dept IT) OU manager du dept cible
-    - assigned      → demandeur + technicien assigné
+    - assigned      → demandeur + technicien assigné (sauf l'auteur de l'affectation)
     - status_changed→ demandeur + technicien assigné
     - comment_added → demandeur + technicien assigné
     - sla_exceeded  → technicien assigné + admins
     - mentioned     → utilisateur mentionné
+
+    performer : utilisateur qui déclenche l'action (exclu des destinataires pour 'assigned')
     """
     from apps.accounts.models import User
 
@@ -22,9 +24,10 @@ def send_ticket_notification(ticket, event, recipient=None):
         recipients = _recipients_for_created(ticket)
 
     elif event == 'assigned':
-        if ticket.assigned_to:
+        if ticket.assigned_to and ticket.assigned_to != performer:
             recipients.add(ticket.assigned_to)
-        recipients.add(ticket.created_by)
+        if ticket.created_by != performer:
+            recipients.add(ticket.created_by)
 
     elif event == 'status_changed':
         recipients.add(ticket.created_by)

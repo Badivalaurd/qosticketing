@@ -523,8 +523,25 @@ class Ticket(models.Model):
                 return [self.STATUS_NOUVEAU]
             return []
 
-        # AGENT : uniquement rejeter un NOUVEAU et clôturer un RESOLU
+        # Transitions de traitement partagées (technicien, agent/manager assignés)
+        TECH_TRANSITIONS = {
+            self.STATUS_AFFECTE: [self.STATUS_EN_COURS],
+            self.STATUS_EN_COURS: [
+                self.STATUS_ATTENTE_INFO,
+                self.STATUS_ATTENTE_PRESTATAIRE,
+                self.STATUS_RESOLU,
+            ],
+            self.STATUS_ATTENTE_INFO: [self.STATUS_EN_COURS],
+            self.STATUS_ATTENTE_PRESTATAIRE: [self.STATUS_EN_COURS],
+        }
+
+        # AGENT : droits de traitement complets s'il est assigné, sinon rejeter/clôturer
         if role == U.ROLE_AGENT:
+            if self.assigned_to == user:
+                result = TECH_TRANSITIONS.get(self.status, [])
+                if self.status == self.STATUS_RESOLU:
+                    return [self.STATUS_CLOTURE]
+                return result
             if self.status == self.STATUS_NOUVEAU:
                 return [self.STATUS_REJETE]
             if self.status == self.STATUS_RESOLU:
@@ -546,18 +563,10 @@ class Ticket(models.Model):
             # En cours et au-delà : uniquement le technicien assigné
             if self.assigned_to != user:
                 return []
-            transitions_tech = {
-                self.STATUS_EN_COURS: [
-                    self.STATUS_ATTENTE_INFO,
-                    self.STATUS_ATTENTE_PRESTATAIRE,
-                    self.STATUS_RESOLU,
-                ],
-                self.STATUS_ATTENTE_INFO: [self.STATUS_EN_COURS],
-                self.STATUS_ATTENTE_PRESTATAIRE: [self.STATUS_EN_COURS],
-            }
-            return transitions_tech.get(self.status, [])
+            return TECH_TRANSITIONS.get(self.status, [])
 
         # MANAGER : gestion de son département ou sous-département IT responsable
+        # + droits de traitement complets s'il est lui-même assigné
         if role == U.ROLE_MANAGER:
             is_my_dept = (
                 self.target_department == user.department or
@@ -566,6 +575,15 @@ class Ticket(models.Model):
             )
             if not is_my_dept:
                 return []
+            if self.assigned_to == user:
+                # Manager assigné : droits de traitement + management
+                transitions_mgr_assigned = {
+                    self.STATUS_NOUVEAU: [self.STATUS_AFFECTE, self.STATUS_REJETE],
+                    **TECH_TRANSITIONS,
+                    self.STATUS_RESOLU: [self.STATUS_CLOTURE],
+                }
+                return transitions_mgr_assigned.get(self.status, [])
+            # Manager non assigné : droits de management (affecter, suivre)
             transitions_mgr = {
                 self.STATUS_NOUVEAU: [self.STATUS_AFFECTE, self.STATUS_REJETE],
                 self.STATUS_AFFECTE: [self.STATUS_EN_COURS],

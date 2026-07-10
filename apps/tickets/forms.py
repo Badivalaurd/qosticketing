@@ -115,29 +115,34 @@ class TicketAssignForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('current_user', None)
         super().__init__(*args, **kwargs)
-        from apps.accounts.models import User
-        ticket = self.instance
+        from apps.accounts.models import User, Department
 
         # Rôles non affectables : Admin, Agent de Support, Observateur
         EXCLUDED_ROLES = [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_OBSERVATEUR]
+
+        def _it_dept_ids(dept):
+            """Retourne les IDs de la racine IT + tous ses sous-départements."""
+            root = dept.parent if dept.parent_id else dept
+            return [root.pk] + list(root.children.values_list('pk', flat=True))
 
         if user and user.role == User.ROLE_ADMIN:
             # Admin : tout le monde sauf admin, agent, observateur
             qs = User.objects.filter(is_active=True).exclude(role__in=EXCLUDED_ROLES)
 
-        elif user and user.role == User.ROLE_AGENT:
-            # Agent : membres de son département (hors rôles exclus)
-            qs = User.objects.filter(
-                department=user.department,
-                is_active=True
-            ).exclude(pk=user.pk).exclude(role__in=EXCLUDED_ROLES)
-
-        elif user and user.role == User.ROLE_MANAGER:
-            # Manager : membres de son département (hors rôles exclus)
-            qs = User.objects.filter(
-                department=user.department,
-                is_active=True
-            ).exclude(pk=user.pk).exclude(role__in=EXCLUDED_ROLES)
+        elif user and user.role in (User.ROLE_AGENT, User.ROLE_MANAGER):
+            # Agent / Manager IT : peut affecter à toute la hiérarchie IT (DSI + MOA + SI/QoS)
+            if user.department and user.department.is_it_department:
+                dept_ids = _it_dept_ids(user.department)
+                qs = User.objects.filter(
+                    department_id__in=dept_ids,
+                    is_active=True
+                ).exclude(role__in=EXCLUDED_ROLES)
+            else:
+                # Hors IT : uniquement son propre département
+                qs = User.objects.filter(
+                    department=user.department,
+                    is_active=True
+                ).exclude(role__in=EXCLUDED_ROLES)
 
         else:
             qs = User.objects.none()
