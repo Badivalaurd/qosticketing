@@ -40,6 +40,7 @@ def send_ticket_notification(ticket, event, recipient=None, performer=None):
             recipients.add(ticket.assigned_to)
 
     elif event == 'sla_exceeded':
+        recipients.add(ticket.created_by)
         if ticket.assigned_to:
             recipients.add(ticket.assigned_to)
         for u in User.objects.filter(role=User.ROLE_ADMIN, is_active=True):
