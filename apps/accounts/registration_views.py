@@ -544,7 +544,12 @@ def magic_login(request):
     if request.user.is_authenticated:
         return redirect('dashboard:home')
 
-    context = {'error': None}
+    context = {'error': None, 'sso_required': False}
+
+    # Flag positionné par magic_login_verify quand aucun compte n'existe
+    if request.session.pop('magic_login_sso_required', False):
+        context['error'] = "Aucun compte actif trouvé pour cette adresse email."
+        context['sso_required'] = True
 
     if request.method == 'POST':
         email = request.POST.get('email', '').strip().lower()
@@ -553,15 +558,19 @@ def magic_login(request):
             context['error'] = "L'adresse email est obligatoire."
         else:
             user = User.objects.filter(email__iexact=email, is_active=True).first()
-            if user:
+            if not user:
+                context['error'] = (
+                    "Aucun compte actif trouvé pour cette adresse email."
+                )
+                context['sso_required'] = True
+            else:
                 code = _generate_code()
                 user.pwd_reset_code = code
                 user.pwd_reset_sent_at = timezone.now()
                 user.save(update_fields=['pwd_reset_code', 'pwd_reset_sent_at'])
                 _send_magic_code(user, code)
-
-            request.session['magic_login_email'] = email
-            return redirect('accounts:magic_login_verify')
+                request.session['magic_login_email'] = email
+                return redirect('accounts:magic_login_verify')
 
     return render(request, 'account/magic_login.html', context)
 
@@ -576,8 +585,14 @@ def magic_login_verify(request):
 
     user = User.objects.filter(email__iexact=email, is_active=True).first()
 
+    # Aucun compte trouvé → renvoyer à l'étape 1 avec le message SSO
+    if not user:
+        request.session.pop('magic_login_email', None)
+        request.session['magic_login_sso_required'] = True
+        return redirect('accounts:magic_login')
+
     seconds_remaining = 0
-    if user and user.pwd_reset_sent_at:
+    if user.pwd_reset_sent_at:
         elapsed = (timezone.now() - user.pwd_reset_sent_at).total_seconds()
         seconds_remaining = max(0, int(MAGIC_CODE_EXPIRY_MINUTES * 60 - elapsed))
 
