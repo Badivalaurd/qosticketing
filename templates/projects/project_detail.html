@@ -358,7 +358,11 @@
           </div>
           <div>
             <div class="small fw-600">{{ member.get_full_name|default:member.username }}</div>
+            {% if request.user.role == 'ADMIN' or request.user.role == 'AGENT' %}
             <div class="text-muted" style="font-size:.7rem">{{ member.get_role_display }}</div>
+            {% else %}
+            <div class="text-muted" style="font-size:.7rem">{{ member.department.name|default:"" }}</div>
+            {% endif %}
           </div>
         </div>
         {% empty %}

@@ -105,7 +105,11 @@
       {% endif %}
       <div class="user-details">
         <div class="user-name">{{ request.user.get_full_name|default:request.user.username }}</div>
+        {% if request.user.role == 'ADMIN' or request.user.role == 'AGENT' %}
         <div class="user-role">{{ request.user.get_role_display }}</div>
+        {% else %}
+        <div class="user-role">{{ request.user.department.name|default:"" }}</div>
+        {% endif %}
       </div>
     </div>
   </div>
