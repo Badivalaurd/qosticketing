@@ -274,10 +274,11 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
         ctx['show_duration'] = (
             ticket.category_id and ticket.category.type in no_sla_types
         )
-        # Seuls l'agent de support et le manager responsable du ticket peuvent fixer la durée
+        # Admin : droits complets sur le site. Agent de support : toujours.
+        # Manager : uniquement si son sous-dept IT est responsable ou le ticket lui est affecté.
         _can_dur = False
         if ctx['show_duration'] and not locked_for_user:
-            if user.role == User.ROLE_AGENT:
+            if user.role in (User.ROLE_ADMIN, User.ROLE_AGENT):
                 _can_dur = True
             elif user.role == User.ROLE_MANAGER:
                 # Manager responsable = son sous-dept IT gère cette catégorie OU ticket lui est affecté
@@ -630,7 +631,7 @@ def ticket_set_duration(request, number):
 
     # Vérification du rôle et de la responsabilité
     authorized = False
-    if user.role == User.ROLE_AGENT:
+    if user.role in (User.ROLE_ADMIN, User.ROLE_AGENT):
         authorized = True
     elif user.role == User.ROLE_MANAGER:
         authorized = (
