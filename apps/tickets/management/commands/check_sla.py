@@ -42,4 +42,8 @@ class Command(BaseCommand):
                 ticket.save(update_fields=['sla_response_exceeded', 'sla_resolution_exceeded', 'updated_at'])
                 updated += 1
 
-        self.stdout.write(self.style.SUCCESS(f'{updated} ticket(s) SLA mis à jour.'))
+        self.stdout.write(self.style.SUCCESS(f'{updated} ticket(s) SLA dépassement mis à jour.'))
+
+        from apps.notifications.tasks import send_sla_warnings
+        warned = send_sla_warnings()
+        self.stdout.write(self.style.SUCCESS(f'{warned} ticket(s) alerte préventive envoyée.'))

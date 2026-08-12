@@ -25,8 +25,13 @@
             <label class="form-label fw-600">Pièces jointes</label>
             <div class="border rounded-xl p-3 bg-light">
               <input type="file" name="files" multiple class="form-control form-control-sm"
+                     id="id_files_create"
                      accept=".pdf,.xls,.xlsx,.doc,.docx,.png,.jpg,.jpeg,.gif,.txt,.log,.csv">
-              <div class="small text-muted mt-1">PDF, Excel, Word, Images, Logs acceptés</div>
+              <div class="small text-muted mt-1">PDF, Excel, Word, Images, Logs acceptés — <strong>1 Mo max par fichier</strong></div>
+              <div id="files-create-warning" class="alert alert-warning py-1 small mt-1 d-none">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                <span id="files-create-warning-text"></span>
+              </div>
             </div>
           </div>
         </form>
@@ -86,18 +91,104 @@
 
 {% block extra_js %}
 <script>
-document.getElementById('id_category')?.addEventListener('change', function() {
-  fetch(`{% url 'tickets:subcategories_ajax' %}?category_id=${this.value}`)
-    .then(r => r.json())
-    .then(data => {
-      const sel = document.getElementById('id_sub_category');
-      if (!sel) return;
-      sel.innerHTML = '<option value="">---------</option>';
-      data.subcategories.forEach(s => {
-        const opt = new Option(s.name, s.id);
-        sel.add(opt);
+const CATEGORY_TYPES = {{ category_types_json|safe }};
+(function() {
+  const input = document.getElementById('id_title');
+  if (!input) return;
+  const max = parseInt(input.getAttribute('maxlength') || '150', 10);
+  const counter = document.createElement('small');
+  counter.className = 'form-text text-muted';
+  function update() {
+    const len = input.value.length;
+    counter.textContent = len + ' / ' + max + ' caractères';
+    counter.className = 'form-text ' + (max - len < 20 ? 'text-danger' : 'text-muted');
+  }
+  input.insertAdjacentElement('afterend', counter);
+  input.addEventListener('input', update);
+  update();
+})();
+
+// Types IT-only : toujours routés vers IT (MOA), pas de département cible autorisé
+const IT_ONLY_TYPES = ['EVOLUTION', 'TACHE_PROJET'];
+
+function updateCategoryInfo(categoryId, categoryType) {
+  // 1. Sous-catégories
+  if (categoryId) {
+    fetch(`{% url 'tickets:subcategories_ajax' %}?category_id=${categoryId}`)
+      .then(r => r.json())
+      .then(data => {
+        const sel = document.getElementById('id_sub_category');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">---------</option>';
+        data.subcategories.forEach(s => sel.add(new Option(s.name, s.id)));
       });
-    });
+  }
+
+  // 2. Masquer / afficher le champ "Envoyer vers un autre département"
+  const targetSel = document.getElementById('id_target_department');
+  if (targetSel) {
+    const targetCol = targetSel.closest('.col-md-6, .mb-3, .form-group');
+    const isItOnly = categoryType && IT_ONLY_TYPES.includes(categoryType);
+    if (targetCol) targetCol.style.display = isItOnly ? 'none' : '';
+    if (isItOnly) {
+      targetSel.value = '';  // effacer la sélection
+      targetSel.dispatchEvent(new Event('change'));
+    }
+  }
+
+  // 3. Notice no-SLA
+  let notice = document.getElementById('sla-notice');
+  if (!notice) {
+    notice = document.createElement('div');
+    notice.id = 'sla-notice';
+    const catField = document.getElementById('id_category');
+    if (catField) catField.closest('.mb-3, .col-md-6')?.append(notice);
+  }
+  if (categoryType && IT_ONLY_TYPES.includes(categoryType)) {
+    notice.innerHTML = '<div class="alert alert-info py-1 mt-1 small"><i class="bi bi-hourglass-split me-1"></i>Ce type est traité par l\'équipe IT (MOA) — <strong>pas de SLA</strong>. Une durée estimée sera définie après création.</div>';
+  } else {
+    notice.innerHTML = '';
+  }
+}
+
+document.getElementById('id_category')?.addEventListener('change', function() {
+  const catType = CATEGORY_TYPES[this.value] || '';
+  updateCategoryInfo(this.value, catType);
 });
+
+// Validation taille des pièces jointes (1 Mo max) — bloque le submit
+(function () {
+  const MAX    = 1 * 1024 * 1024;
+  const input  = document.getElementById('id_files_create');
+  const warn   = document.getElementById('files-create-warning');
+  const wText  = document.getElementById('files-create-warning-text');
+  const form   = input && input.closest('form');
+  if (!input || !form) return;
+
+  function checkFiles() {
+    return Array.from(input.files).filter(f => f.size > MAX).map(f => f.name);
+  }
+
+  input.addEventListener('change', function () {
+    const over = checkFiles();
+    if (over.length) {
+      wText.textContent = 'Fichier(s) trop volumineux (> 1 Mo) : ' + over.join(', ') +
+        '. Utilisez l\'outil interne de transfert de fichiers.';
+      warn.classList.remove('d-none');
+    } else {
+      warn.classList.add('d-none');
+    }
+  });
+
+  form.addEventListener('submit', function (e) {
+    const over = checkFiles();
+    if (over.length) {
+      e.preventDefault();
+      wText.textContent = 'Veuillez retirer les fichiers supérieurs à 1 Mo avant de créer le ticket.';
+      warn.classList.remove('d-none');
+      input.focus();
+    }
+  });
+})();
 </script>
 {% endblock %}

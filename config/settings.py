@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import os
 from dotenv import load_dotenv
 
@@ -11,6 +11,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
+    'mozilla_django_oidc',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -26,6 +27,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
+    'import_export',
     # Local apps
     'apps.accounts',
     'apps.tickets',
@@ -44,10 +46,14 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.accounts.middleware.SessionInactivityMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
 ]
+
+# Déconnexion automatique après 2h d'inactivité
+SESSION_INACTIVITY_TIMEOUT = 7200  # secondes
 
 ROOT_URLCONF = 'config.urls'
 
@@ -72,26 +78,33 @@ WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
 # Database
-if os.getenv('DB_ENGINE'):
-    DATABASES = {
-        'default': {
-            'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
-            'NAME': os.getenv('DB_NAME', 'postgres'),
-            'USER': os.getenv('DB_USER', 'postgres'),
-            'PASSWORD': os.getenv('DB_PASSWORD', ''),
-            'HOST': os.getenv('DB_HOST', 'localhost'),
-            'PORT': os.getenv('DB_PORT', '5432'),
-            'CONN_MAX_AGE': 600,
-            'OPTIONS': {'sslmode': os.getenv('DB_SSLMODE', 'disable')},
-        }
+# SQLite — désactivé (remplacé par PostgreSQL via Docker)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
+_DB_ENGINE = os.getenv('DB_ENGINE', 'django.db.backends.postgresql')
+_DB_OPTIONS = {}
+if 'postgresql' in _DB_ENGINE:
+    _DB_OPTIONS = {'sslmode': os.getenv('DB_SSLMODE', 'disable')}
+elif 'mysql' in _DB_ENGINE:
+    _DB_OPTIONS = {'charset': 'utf8mb4', 'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"}
+
+DATABASES = {
+    'default': {
+        'ENGINE': _DB_ENGINE,
+        'NAME': os.getenv('DB_NAME', 'ittis'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'postgres_password'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
+        'CONN_MAX_AGE': 600,
+        'OPTIONS': _DB_OPTIONS,
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -104,7 +117,11 @@ AUTH_USER_MODEL = 'accounts.User'
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
+    'apps.accounts.oidc.KeycloakOIDCBackend',
 ]
+
+from django.contrib.messages import constants as _msg
+MESSAGE_TAGS = {_msg.ERROR: 'danger'}
 
 LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'Africa/Abidjan'
@@ -128,6 +145,7 @@ CRISPY_TEMPLATE_PACK = 'bootstrap5'
 ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'optional'
+ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 LOGIN_URL = '/accounts/login/'
@@ -139,7 +157,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.BasicAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'apps.accounts.permissions.IsAdminRole',
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -152,21 +170,22 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'QoS Ticketing API',
+    'TITLE': 'ITTIS API',
     'DESCRIPTION': 'API de gestion des tickets, incidents et évolutions',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
 
-# Email — Gmail SMTP
+# Email — Relay SMTP interne (sans authentification)
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST = os.getenv('EMAIL_HOST', '172.26.76.151')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 25))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'False') == 'True'
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False') == 'True'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'QoS Ticketing <noreply.qosomcm@gmail.com>')
-NOTIFICATION_EMAIL = os.getenv('NOTIFICATION_EMAIL', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'ITTIS <no-reply.extraction@orange.com>')
+NOTIFICATION_EMAIL = os.getenv('NOTIFICATION_EMAIL', 'no-reply.extraction@orange.com')
 
 # Celery
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
@@ -182,4 +201,90 @@ SLA_HOURS = {
     'HAUTE': 8,
     'MOYENNE': 24,
     'FAIBLE': 72,
+}
+
+# ── Keycloak / OIDC ────────────────────────────────────────────────────────────
+_KC_BASE  = os.getenv('OIDC_KEYCLOAK_URL',   'http://keycloak.adcm.orangecm/auth')
+_KC_REALM = os.getenv('OIDC_KEYCLOAK_REALM', 'digital-app')
+_KC_PROTO = f"{_KC_BASE}/realms/{_KC_REALM}/protocol/openid-connect"
+
+OIDC_RP_CLIENT_ID     = os.getenv('OIDC_RP_CLIENT_ID',     'ittis')
+OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', '')
+OIDC_RP_SIGN_ALGO     = 'RS256'
+OIDC_RP_SCOPES        = 'openid email profile'
+
+OIDC_OP_AUTHORIZATION_ENDPOINT = f"{_KC_PROTO}/auth"
+OIDC_OP_TOKEN_ENDPOINT         = f"{_KC_PROTO}/token"
+OIDC_OP_USER_ENDPOINT          = f"{_KC_PROTO}/userinfo"
+OIDC_OP_JWKS_ENDPOINT          = f"{_KC_PROTO}/certs"
+OIDC_OP_LOGOUT_ENDPOINT        = f"{_KC_PROTO}/logout"
+
+OIDC_REDIRECT_OK_FIELD_NAME    = 'next'
+OIDC_REDIRECT_FIELD_NAME       = 'next'
+OIDC_STORE_ID_TOKEN            = True
+LOGIN_REDIRECT_URL_FAILURE     = '/accounts/login/'
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'console': {
+            'format': '\033[36m{asctime}\033[0m [{levelname}] {name} | {message}',
+            'style': '{',
+            'datefmt': '%H:%M:%S',
+        },
+        'file': {
+            'format': '{asctime} [{levelname}] {name} | user={user} | {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+            'defaults': {'user': 'system'},
+        },
+    },
+    'filters': [],
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'console',
+        },
+        'daily_global': {
+            '()': 'apps.accounts.log_handlers.DailyFileHandler',
+            'log_dir': str(LOGS_DIR),
+            'formatter': 'file',
+        },
+        'daily_user': {
+            '()': 'apps.accounts.log_handlers.UserDailyFileHandler',
+            'log_dir': str(LOGS_DIR),
+            'formatter': 'file',
+        },
+    },
+    'loggers': {
+        'mozilla_django_oidc': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'apps': {
+            'handlers': ['console', 'daily_global', 'daily_user'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
 }

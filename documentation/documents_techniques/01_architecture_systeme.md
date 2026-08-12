@@ -1,4 +1,4 @@
-# Architecture Système — QoS Ticketing
+﻿# Architecture Système — ITTIS
 
 **Version :** 1.0 | **Date :** Juin 2026  
 **Auteur :** Équipe DSI
@@ -7,7 +7,7 @@
 
 ## 1. Vue d'ensemble
 
-QoS Ticketing est une application web monolithique basée sur le framework **Django 5.x**. Elle suit l'architecture MVT (Model-View-Template) de Django.
+ITTIS est une application web monolithique basée sur le framework **Django 5.x**. Elle suit l'architecture MVT (Model-View-Template) de Django.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

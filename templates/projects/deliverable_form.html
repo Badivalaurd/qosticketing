@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ action }} livrable — {{ project.name }}{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
+<li class="breadcrumb-item"><a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a></li>
+<li class="breadcrumb-item active">{{ action }} livrable</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-box-seam me-2 text-orange"></i>{{ action }} livrable — <span class="text-muted fs-5">{{ project.name }}</span></h1>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          {% crispy form %}
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card bg-light border-0">
+      <div class="card-body small text-muted">
+        <p class="fw-600 text-dark mb-2"><i class="bi bi-info-circle me-1"></i>À propos des livrables</p>
+        <p>Un livrable représente un résultat concret attendu du projet. Il peut être rattaché à un sprint spécifique ou rester au niveau du projet.</p>
+        <ul class="ps-3 mb-0">
+          <li><strong>En attente</strong> : non démarré</li>
+          <li><strong>En cours</strong> : en production</li>
+          <li><strong>Livré</strong> : fourni au client</li>
+          <li><strong>Validé</strong> : accepté et clôturé</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

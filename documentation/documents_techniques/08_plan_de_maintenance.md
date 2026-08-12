@@ -1,4 +1,4 @@
-# Plan de Maintenance — QoS Ticketing
+﻿# Plan de Maintenance — ITTIS
 
 **Version :** 1.0 | **Date :** Juin 2026  
 **Auteur :** Équipe DSI
@@ -7,7 +7,7 @@
 
 ## 1. Objectif
 
-Ce document décrit les procédures de maintenance préventive, corrective et évolutive de la plateforme QoS Ticketing, ainsi que les responsabilités associées.
+Ce document décrit les procédures de maintenance préventive, corrective et évolutive de la plateforme ITTIS, ainsi que les responsabilités associées.
 
 ---
 
@@ -27,7 +27,7 @@ Ce document décrit les procédures de maintenance préventive, corrective et é
 
 ```bash
 # Sauvegarde manuelle
-cp ~/qos-ticketing/db.sqlite3 ~/backups/db_$(date +%Y%m%d).sqlite3
+cp ~/ITTIS/db.sqlite3 ~/backups/db_$(date +%Y%m%d).sqlite3
 ```
 
 Fréquence recommandée : **quotidienne**.
@@ -48,7 +48,7 @@ Fréquence recommandée : **quotidienne** (automatisée via cron).
 
 ```bash
 # Copie du répertoire media
-cp -r ~/qos-ticketing/media/ ~/backups/media_$(date +%Y%m%d)/
+cp -r ~/ITTIS/media/ ~/backups/media_$(date +%Y%m%d)/
 ```
 
 Fréquence recommandée : **hebdomadaire**.
@@ -68,7 +68,7 @@ Fréquence recommandée : **hebdomadaire**.
 ### 4.1 Mise à jour de l'application (code)
 
 ```bash
-cd ~/qos-ticketing
+cd ~/ITTIS
 source venv/bin/activate
 git pull origin master          # ou develop selon l'environnement
 

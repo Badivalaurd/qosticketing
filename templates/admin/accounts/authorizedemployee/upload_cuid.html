@@ -1,0 +1,99 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Charger des CUIDs autorisés{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Accueil</a> ›
+  <a href="{% url 'admin:accounts_authorizedemployee_changelist' %}">Employés autorisés</a> ›
+  Charger un fichier
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Charger des CUIDs autorisés</h1>
+
+<div style="max-width:700px;">
+
+  <!-- Format attendu -->
+  <div style="background:#e8f5e9;border-left:4px solid #388e3c;padding:14px 18px;border-radius:4px;margin-bottom:24px;">
+    <strong>Format du fichier (Excel .xlsx/.xls ou CSV) :</strong><br>
+    <p style="margin:8px 0 4px;">Ligne 1 = en-têtes, lignes suivantes = données :</p>
+    <table style="border-collapse:collapse;font-size:13px;margin-top:8px;">
+      <tr style="background:#c8e6c9;">
+        <th style="border:1px solid #aaa;padding:6px 14px;">CUID</th>
+        <th style="border:1px solid #aaa;padding:6px 14px;">Statut</th>
+        <th style="border:1px solid #aaa;padding:6px 14px;">Département</th>
+      </tr>
+      <tr>
+        <td style="border:1px solid #ddd;padding:6px 14px;">EMP001</td>
+        <td style="border:1px solid #ddd;padding:6px 14px;">permanent</td>
+        <td style="border:1px solid #ddd;padding:6px 14px;">Département Informatique</td>
+      </tr>
+      <tr style="background:#f9f9f9;">
+        <td style="border:1px solid #ddd;padding:6px 14px;">EMP002</td>
+        <td style="border:1px solid #ddd;padding:6px 14px;">stagiaire</td>
+        <td style="border:1px solid #ddd;padding:6px 14px;">Direction Financière</td>
+      </tr>
+    </table>
+    <p style="margin:10px 0 0;font-size:12px;color:#555;">
+      Valeurs Statut acceptées : <strong>permanent</strong>, <strong>interimaire</strong>, <strong>stagiaire</strong>, <strong>temporaire</strong><br>
+      Le Département doit correspondre à un département existant (recherche approximative tolérée).<br>
+      Si un CUID existe déjà, il sera mis à jour sans écraser le statut d'inscription.
+    </p>
+  </div>
+
+  <!-- Formulaire upload -->
+  <div style="background:#fff;border:1px solid #ddd;padding:24px;border-radius:4px;margin-bottom:24px;">
+    <h2 style="font-size:16px;margin-top:0;">Sélectionner le fichier</h2>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div style="margin-bottom:16px;">
+        <input type="file" name="excel_file" accept=".xlsx,.xls,.csv"
+               style="border:1px solid #ccc;padding:8px;border-radius:4px;width:100%;box-sizing:border-box;">
+      </div>
+      <input type="submit" value="⬆ Charger le fichier"
+             style="background:#417690;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-size:14px;">
+      &nbsp;
+      <a href="{% url 'admin:accounts_authorizedemployee_changelist' %}"
+         style="color:#666;font-size:13px;">Annuler</a>
+    </form>
+  </div>
+
+  <!-- Résultats -->
+  {% if results %}
+  <div style="background:#fff;border:1px solid #ddd;padding:20px;border-radius:4px;">
+    <h2 style="font-size:15px;margin-top:0;">
+      Résultat :
+      <span style="color:#388e3c;">{{ results.created }} créé(s)</span> ·
+      <span style="color:#f59e0b;">{{ results.updated }} mis à jour</span> ·
+      <span style="color:#888;">{{ results.skipped }} ignoré(s)</span>
+    </h2>
+    {% if results.rows %}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="background:#f0f0f0;">
+          <th style="border:1px solid #ddd;padding:6px 10px;text-align:left;">CUID</th>
+          <th style="border:1px solid #ddd;padding:6px 10px;text-align:left;">Action</th>
+          <th style="border:1px solid #ddd;padding:6px 10px;text-align:left;">Statut</th>
+          <th style="border:1px solid #ddd;padding:6px 10px;text-align:left;">Département</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in results.rows %}
+        <tr style="{% if row.action == 'Créé' %}background:#f0fff0{% else %}background:#fff{% endif %}">
+          <td style="border:1px solid #ddd;padding:6px 10px;font-weight:bold;">{{ row.cuid }}</td>
+          <td style="border:1px solid #ddd;padding:6px 10px;">{{ row.action }}</td>
+          <td style="border:1px solid #ddd;padding:6px 10px;">{{ row.statut }}</td>
+          <td style="border:1px solid #ddd;padding:6px 10px;">{{ row.dept|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

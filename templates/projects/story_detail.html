@@ -1,60 +1,391 @@
 {% extends 'base.html' %}
-{% load crispy_forms_tags %}
-{% block title %}{{ story.title }}{% endblock %}
+{% load project_tags %}
+{% block title %}{{ story.title|truncatechars:50 }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
+<li class="breadcrumb-item"><a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a></li>
+<li class="breadcrumb-item active">{{ story.title|truncatechars:35 }}</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.story-header-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 14px; border-radius: 20px; font-size: .8rem; font-weight: 600;
+}
+.story-info-row { display: flex; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: .85rem; }
+.story-info-row:last-child { border-bottom: none; }
+.story-info-label { width: 110px; color: #6c757d; flex-shrink: 0; font-size: .8rem; }
+.task-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
+.task-row:last-of-type { border-bottom: none; }
+.task-row:hover { background: #fafbfc; }
+.comment-item { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+.comment-item:last-child { border-bottom: none; }
+.comment-avatar { width: 32px; height: 32px; border-radius: 50%; background: #6c757d; color: #fff; display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 600; flex-shrink: 0; }
+.comment-body { font-size: .875rem; white-space: pre-wrap; line-height: 1.5; }
+.comment-meta { font-size: .75rem; color: #6c757d; margin-bottom: 4px; }
+.task-status-btn { font-size: .7rem; padding: 1px 8px; }
+.status-BACKLOG { background: #6c757d; }
+.status-TODO { background: #0d6efd; }
+.status-IN_PROGRESS { background: #fd7e14; }
+.status-IN_TEST { background: #6f42c1; }
+.status-DONE { background: #198754; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1>{{ story.title }}</h1>
-  <span class="badge bg-secondary">{{ story.get_status_display }}</span>
+<!-- Top bar -->
+<div class="page-header align-items-start">
+  <div class="flex-grow-1">
+    <div class="d-flex align-items-center gap-3 flex-wrap mb-1">
+      <span class="badge status-{{ story.status }} story-header-status">{{ story.get_status_display }}</span>
+      {% if story.priority %}
+      <span class="badge bg-{{ PRIORITY_COLORS|get_item:story.priority }}">{{ PRIORITY_LABELS|get_item:story.priority }}</span>
+      {% endif %}
+      {% if story.epic %}
+      <span class="badge" style="background:{{ story.epic.color }}">{{ story.epic.name }}</span>
+      {% endif %}
+      {% if story.story_points %}
+      <span class="badge bg-light text-dark border">{{ story.story_points }} pts</span>
+      {% endif %}
+    </div>
+    <h1 class="h3 mb-0">{{ story.title }}</h1>
+    <div class="small text-muted mt-1">
+      Projet : <a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a>
+      {% if story.sprint %} · Sprint : <a href="{% url 'projects:sprint_detail' project.pk story.sprint.pk %}">{{ story.sprint.name }}</a>{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-shrink-0">
+    {% if can_execute %}
+    <a href="{% url 'projects:story_update' project.pk story.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-pencil me-1"></i>Modifier
+    </a>
+    {% endif %}
+    {% if can_manage %}
+    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteStoryModal">
+      <i class="bi bi-trash me-1"></i>Supprimer
+    </button>
+    {% endif %}
+    <a href="{% url 'projects:backlog' project.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-list-task me-1"></i>Backlog
+    </a>
+  </div>
 </div>
+
 <div class="row g-3">
+
+  <!-- Left: main content -->
   <div class="col-lg-8">
+
+    <!-- Description -->
     <div class="card mb-3">
-      <div class="card-header">Description</div>
-      <div class="card-body"><p style="white-space:pre-wrap">{{ story.description|default:"—" }}</p></div>
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-file-text text-muted"></i><strong>Description</strong>
+      </div>
+      <div class="card-body">
+        {% if story.description %}
+        <p style="white-space:pre-wrap;margin:0">{{ story.description }}</p>
+        {% else %}
+        <span class="text-muted small">Aucune description.</span>
+        {% endif %}
+      </div>
     </div>
+
+    <!-- Acceptance criteria -->
     <div class="card mb-3">
-      <div class="card-header">Critères d'acceptation</div>
-      <div class="card-body"><p style="white-space:pre-wrap">{{ story.acceptance_criteria|default:"—" }}</p></div>
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-check2-all text-muted"></i><strong>Critères d'acceptation</strong>
+      </div>
+      <div class="card-body">
+        {% if story.acceptance_criteria %}
+        <p style="white-space:pre-wrap;margin:0">{{ story.acceptance_criteria }}</p>
+        {% else %}
+        <span class="text-muted small">Non défini.</span>
+        {% endif %}
+      </div>
     </div>
-    <div class="card">
-      <div class="card-header">Tâches</div>
+
+    <!-- Tasks -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-check2-square me-2 text-muted"></i><strong>Tâches</strong>
+          <span class="badge bg-secondary ms-1">{{ tasks|length }}</span>
+        </span>
+      </div>
       <div class="card-body p-0">
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Titre</th><th>Statut</th><th>Assigné</th><th>Heures</th></tr></thead>
-          <tbody>
-            {% for task in tasks %}
-            <tr>
-              <td>{{ task.title }}</td>
-              <td><span class="badge bg-secondary">{{ task.get_status_display }}</span></td>
-              <td class="small">{{ task.assignee.get_full_name|default:"—" }}</td>
-              <td class="small">{{ task.estimated_hours }}h</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="4" class="text-center text-muted py-3">Aucune tâche</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        <div class="p-3 border-top">
-          <strong class="small">Ajouter une tâche</strong>
-          <form method="post" class="mt-2">{% csrf_token %}{% crispy form %}</form>
+        {% for task in tasks %}
+        <div class="task-row">
+          <!-- Status toggle -->
+          <div class="dropdown">
+            <button class="btn task-status-btn badge {% if task.status == 'DONE' %}bg-success{% elif task.status == 'IN_PROGRESS' %}bg-primary{% else %}bg-secondary{% endif %} border-0 dropdown-toggle"
+                    data-bs-toggle="dropdown">
+              {{ task.get_status_display }}
+            </button>
+            <ul class="dropdown-menu shadow-sm" style="font-size:.8rem;min-width:150px">
+              {% for val, label in task.STATUS_CHOICES %}
+              <li>
+                <form method="post" action="{% url 'projects:update_task_status' task.pk %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="status" value="{{ val }}">
+                  <button type="submit" class="dropdown-item {% if task.status == val %}fw-bold{% endif %}">{{ label }}</button>
+                </form>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="flex-grow-1">
+            <div class="small fw-500">{{ task.title }}</div>
+            {% if task.description %}
+            <div class="small text-muted">{{ task.description|truncatechars:80 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="d-flex align-items-center gap-2 flex-shrink-0">
+            {% if task.due_date %}
+            <small class="text-muted"><i class="bi bi-calendar2 me-1"></i>{{ task.due_date|date:"d/m/Y" }}</small>
+            {% endif %}
+            {% if task.estimated_hours %}
+            <small class="text-muted"><i class="bi bi-clock me-1"></i>{{ task.estimated_hours }}h</small>
+            {% endif %}
+            {% if task.assignee %}
+            <div class="avatar-xs-sm" style="width:24px;height:24px;border-radius:50%;background:#6c757d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:600" title="{{ task.assignee.get_full_name }}">
+              {{ task.assignee.first_name|first|default:task.assignee.username|first|upper }}
+            </div>
+            {% endif %}
+            {% if can_execute %}
+            <a href="{% url 'projects:task_update' project.pk task.pk %}" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.7rem" title="Modifier">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="{% url 'projects:task_delete' project.pk task.pk %}"
+                  onsubmit="return confirm('Supprimer cette tâche ?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-2" style="font-size:.7rem" title="Supprimer">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <div class="text-center text-muted py-3 small">
+          <i class="bi bi-check2-square me-1"></i>Aucune tâche pour l'instant.
+        </div>
+        {% endfor %}
+
+        {% if can_execute %}
+        <div class="p-3 border-top bg-light">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <strong class="small">Nouvelle tâche</strong>
+            <button class="btn btn-xs btn-link text-muted p-0" type="button" data-bs-toggle="collapse" data-bs-target="#addTaskForm">
+              <i class="bi bi-chevron-down"></i>
+            </button>
+          </div>
+          <div class="collapse show" id="addTaskForm">
+            <form method="post">
+              {% csrf_token %}
+              <div class="mb-2">
+                <input type="text" name="title" class="form-control form-control-sm" placeholder="Titre de la tâche *" required>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <select name="assignee" class="form-select form-select-sm">
+                    <option value="">— Non assigné —</option>
+                    {% for member in project.team.all %}
+                    <option value="{{ member.pk }}">{{ member.get_full_name|default:member.username }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-3">
+                  <input type="number" name="estimated_hours" class="form-control form-control-sm" placeholder="Heures" min="0" step="0.5" value="0">
+                </div>
+                <div class="col-3">
+                  <input type="date" name="due_date" class="form-control form-control-sm">
+                </div>
+              </div>
+              <input type="hidden" name="status" value="TODO">
+              <input type="hidden" name="actual_hours" value="0">
+              <button type="submit" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus me-1"></i>Ajouter
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Comments -->
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-chat-text me-1 text-muted"></i>
+        <strong>Commentaires</strong>
+        <span class="badge bg-secondary ms-1">{{ comments|length }}</span>
+      </div>
+      <div class="card-body p-3">
+        {% for comment in comments %}
+        <div class="comment-item">
+          <div class="comment-avatar">
+            {{ comment.author.first_name|first|default:comment.author.username|first|upper }}
+          </div>
+          <div class="flex-grow-1">
+            <div class="comment-meta">
+              <strong>{{ comment.author.get_full_name|default:comment.author.username }}</strong>
+              · {{ comment.created_at|date:"d/m/Y H:i" }}
+            </div>
+            <div class="comment-body">{{ comment.body }}</div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="text-center text-muted py-3 small">
+          <i class="bi bi-chat-text me-1"></i>Aucun commentaire. Soyez le premier !
+        </div>
+        {% endfor %}
+
+        <!-- Add comment -->
+        <form method="post" action="{% url 'projects:story_comment_add' project.pk story.pk %}" class="mt-3 pt-3 border-top">
+          {% csrf_token %}
+          <div class="d-flex gap-2">
+            <div class="comment-avatar">
+              {{ request.user.first_name|first|default:request.user.username|first|upper }}
+            </div>
+            <div class="flex-grow-1">
+              <textarea name="body" rows="2" class="form-control form-control-sm" placeholder="Ajouter un commentaire…" required></textarea>
+              <div class="mt-2">
+                <button type="submit" class="btn btn-sm btn-primary">
+                  <i class="bi bi-send me-1"></i>Commenter
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right: info panel -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><strong>Informations</strong></div>
+      <div class="card-body p-0">
+        <div class="story-info-row px-3">
+          <div class="story-info-label">Statut</div>
+          <div>
+            <span class="badge status-{{ story.status }}">{{ story.get_status_display }}</span>
+          </div>
+        </div>
+        <div class="story-info-row px-3">
+          <div class="story-info-label">Priorité</div>
+          <div>
+            {% if story.priority %}
+            <span class="badge bg-{{ PRIORITY_COLORS|get_item:story.priority }}">{{ PRIORITY_LABELS|get_item:story.priority }}</span>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </div>
+        </div>
+        <div class="story-info-row px-3">
+          <div class="story-info-label">Projet</div>
+          <div><a href="{% url 'projects:detail' project.pk %}" class="small">{{ project.name }}</a></div>
+        </div>
+        <div class="story-info-row px-3">
+          <div class="story-info-label">Epic</div>
+          <div>
+            {% if story.epic %}
+            <span class="badge" style="background:{{ story.epic.color }}">{{ story.epic.name }}</span>
+            {% else %}<span class="text-muted small">—</span>{% endif %}
+          </div>
+        </div>
+        <div class="story-info-row px-3">
+          <div class="story-info-label">Sprint</div>
+          <div>
+            {% if story.sprint %}
+            <a href="{% url 'projects:sprint_detail' project.pk story.sprint.pk %}" class="small">{{ story.sprint.name }}</a>
+            {% else %}<span class="text-muted small">Backlog</span>{% endif %}
+          </div>
+        </div>
+        <div class="story-info-row px-3">
+          <div class="story-info-label">Assigné à</div>
+          <div class="small">{{ story.assignee.get_full_name|default:"—" }}</div>
+        </div>
+        <div class="story-info-row px-3">
+          <div class="story-info-label">Story Points</div>
+          <div class="small fw-600">{{ story.story_points|default:"0" }} pts</div>
+        </div>
+        <div class="story-info-row px-3">
+          <div class="story-info-label">Créé le</div>
+          <div class="small text-muted">{{ story.created_at|date:"d/m/Y" }}</div>
+        </div>
+        <div class="story-info-row px-3">
+          <div class="story-info-label">Modifié le</div>
+          <div class="small text-muted">{{ story.updated_at|date:"d/m/Y H:i" }}</div>
         </div>
       </div>
     </div>
-  </div>
-  <div class="col-lg-4">
+
+    <!-- Quick status change -->
+    {% if can_execute %}
+    <div class="card mb-3">
+      <div class="card-header"><strong>Changer le statut</strong></div>
+      <div class="card-body d-flex flex-column gap-2 p-3">
+        {% for val, label in story.STATUS_CHOICES %}
+        {% if val != story.status %}
+        <form method="post" action="{% url 'projects:update_story_status' story.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="{{ val }}">
+          <button type="submit" class="btn btn-sm btn-outline-secondary w-100 text-start">
+            <i class="bi bi-arrow-right-circle me-2"></i>{{ label }}
+          </button>
+        </form>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Tasks summary -->
+    {% if tasks %}
     <div class="card">
-      <div class="card-header">Informations</div>
+      <div class="card-header"><strong>Avancement des tâches</strong></div>
       <div class="card-body">
-        <table class="table table-sm table-borderless small">
-          <tr><td class="text-muted">Projet</td><td>{{ project.name }}</td></tr>
-          <tr><td class="text-muted">Epic</td><td>{{ story.epic.name|default:"—" }}</td></tr>
-          <tr><td class="text-muted">Sprint</td><td>{{ story.sprint.name|default:"Backlog" }}</td></tr>
-          <tr><td class="text-muted">Assigné</td><td>{{ story.assignee.get_full_name|default:"—" }}</td></tr>
-          <tr><td class="text-muted">Points</td><td>{{ story.story_points }}</td></tr>
-        </table>
+        {% with total_t=tasks|length done_t=tasks|dictsort:"status" %}
+        {% with done_count=story.tasks.filter.all %}
+        <div class="small text-muted mb-1">{{ tasks|length }} tâche(s) au total</div>
+        {% endwith %}
+        {% endwith %}
+        {% for task in tasks %}
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="badge {% if task.status == 'DONE' %}bg-success{% elif task.status == 'IN_PROGRESS' %}bg-primary{% else %}bg-secondary{% endif %}" style="font-size:.65rem;min-width:70px">{{ task.get_status_display }}</span>
+          <span class="small text-truncate">{{ task.title|truncatechars:35 }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Delete modal -->
+{% if can_manage %}
+<div class="modal fade" id="deleteStoryModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Supprimer</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body small">
+        Supprimer définitivement la story <strong>« {{ story.title|truncatechars:50 }} »</strong> et toutes ses tâches ?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+        <form method="post" action="{% url 'projects:story_delete' project.pk story.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-danger">Supprimer</button>
+        </form>
       </div>
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}

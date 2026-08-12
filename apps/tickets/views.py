@@ -10,11 +10,16 @@ from .models import Ticket, Comment, Attachment, TicketHistory, Category, SubCat
 from .forms import (
     TicketCreateForm, TicketEditForm, TicketAssignForm, TicketRequestInfoForm,
     TicketRespondInfoForm, TicketTransferDeptForm,
-    TicketStatusForm, TicketPriorityForm, CommentForm, AttachmentForm, TicketFilterForm
+    TicketStatusForm, TicketPriorityForm, CommentForm, AttachmentForm,
+    TicketFilterForm, TicketDurationForm
 )
 from apps.notifications.utils import send_ticket_notification
 from apps.accounts.models import User
+import json
 import re
+
+# Taille maximale d'une pièce jointe : 1 Mo
+MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024  # 1 048 576 octets
 
 
 def get_tickets_for_user(user, tab='it'):
@@ -48,22 +53,31 @@ def get_tickets_for_user(user, tab='it'):
     if user.role == User.ROLE_TECHNICIEN:
         return qs
 
-    # Observateur IT → tout voir ; sinon son dept
+    # Observateur IT → tout voir ; sinon son dept (jamais NO-DEPT global)
     if user.role == User.ROLE_OBSERVATEUR:
         if user.is_it_member:
             return qs
-        return qs.filter(department=user.department)
+        if user.department and not user.department.is_placeholder:
+            return qs.filter(department=user.department)
+        return qs.filter(created_by=user)
 
-    # Manager → son département (cible ou demandeur)
+    # Manager → son département + tickets routés à son IT sub-dept via category.it_team
     if user.role == User.ROLE_MANAGER:
-        return qs.filter(
-            Q(target_department=user.department) | Q(department=user.department)
-        ).distinct()
+        if user.department and not user.department.is_placeholder:
+            return qs.filter(
+                Q(target_department=user.department) |
+                Q(department=user.department) |
+                Q(category__it_team=user.department)
+            ).distinct()
+        return qs.filter(created_by=user)
 
-    # Demandeur → tickets des membres de son département
+    # Demandeur → toujours ses propres tickets + ceux de son département réel
+    # (les vieux tickets créés en NO-DEPT restent visibles après réaffectation)
     if user.role == User.ROLE_DEMANDEUR:
-        if user.department:
-            return qs.filter(created_by__department=user.department)
+        if user.department and not user.department.is_placeholder:
+            return qs.filter(
+                Q(created_by=user) | Q(created_by__department=user.department)
+            ).distinct()
         return qs.filter(created_by=user)
 
     return qs.none()
@@ -183,10 +197,11 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
         ctx['history_is_paginated'] = history_paginator.num_pages > 1
 
         ctx['attachments'] = ticket.attachments.all()
-        ctx['is_locked'] = ticket.is_locked
+        locked_for_user = ticket.is_locked_for(user)
+        ctx['is_locked'] = locked_for_user
 
-        # Ticket verrouillé — aucune action disponible
-        if ticket.is_locked:
+        # Ticket verrouillé pour cet utilisateur — aucune action disponible
+        if locked_for_user:
             ctx['allowed_transitions'] = []
             ctx['can_assign'] = False
             ctx['can_request_info'] = False
@@ -205,6 +220,9 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
         ctx['can_assign'] = can_assign
         if can_assign:
             ctx['assign_form'] = TicketAssignForm(instance=ticket, current_user=user)
+
+        # Prise en charge par un technicien (auto-affectation)
+        ctx['can_takeover'] = ticket.can_technicien_takeover(user)
 
         # Formulaire demande d'info (pas les admins, seulement EN_COURS)
         ctx['can_request_info'] = (
@@ -248,9 +266,33 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
         ctx['can_set_waiting'] = user.role in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_TECHNICIEN]
 
         ctx['can_edit'] = (
-            user.role in [User.ROLE_ADMIN, User.ROLE_AGENT] or
+            user.role == User.ROLE_ADMIN or
+            (user.role == User.ROLE_AGENT and ticket.status not in Ticket.ADMIN_ONLY_STATUSES) or
             (ticket.status == Ticket.STATUS_NOUVEAU and ticket.created_by == user)
         )
+
+        # Durée estimée : visible et modifiable uniquement pour agent/admin/manager
+        # sur les tickets Évolution et Tâche Projet (pas de SLA)
+        no_sla_types = (Category.EVOLUTION, Category.TACHE_PROJET)
+        ctx['show_duration'] = (
+            ticket.category_id and ticket.category.type in no_sla_types
+        )
+        # Admin : droits complets sur le site. Agent de support : toujours.
+        # Manager : uniquement si son sous-dept IT est responsable ou le ticket lui est affecté.
+        _can_dur = False
+        if ctx['show_duration'] and not locked_for_user:
+            if user.role in (User.ROLE_ADMIN, User.ROLE_AGENT):
+                _can_dur = True
+            elif user.role == User.ROLE_MANAGER:
+                # Manager responsable = son sous-dept IT gère cette catégorie OU ticket lui est affecté
+                is_responsible = (
+                    (ticket.category_id and ticket.category.it_team_id == user.department_id) or
+                    ticket.assigned_to_id == user.pk
+                )
+                _can_dur = is_responsible
+        ctx['can_set_duration'] = _can_dur
+        if ctx['can_set_duration']:
+            ctx['duration_form'] = TicketDurationForm(ticket=ticket)
         return ctx
 
 
@@ -263,33 +305,57 @@ def ticket_create(request):
             ticket.created_by = request.user
             if request.user.department and not ticket.department:
                 ticket.department = request.user.department
+            # EVOLUTION / TACHE_PROJET → toujours IT (MOA), ignorer un éventuel dept cible
+            it_only = (Category.EVOLUTION, Category.TACHE_PROJET)
+            if ticket.category_id and ticket.category.type in it_only:
+                ticket.target_department = None
             ticket.save()
             TicketHistory.objects.create(
                 ticket=ticket, user=request.user,
                 action=f"Ticket créé — statut '{ticket.get_status_display()}'"
             )
             files = request.FILES.getlist('files')
-            for f in files:
-                Attachment.objects.create(
-                    ticket=ticket, file=f, filename=f.name,
-                    file_size=f.size, content_type=f.content_type or '',
-                    uploaded_by=request.user
+            oversized = [f.name for f in files if f.size > MAX_ATTACHMENT_SIZE]
+            if oversized:
+                # Bloquer la création si l'un des fichiers dépasse 1 Mo
+                noms = ', '.join(oversized)
+                messages.error(
+                    request,
+                    f"Création annulée — fichier(s) supérieur(s) à 1 Mo : {noms}. "
+                    "Pour les fichiers volumineux, utilisez l'outil interne de transfert de fichiers."
                 )
-            send_ticket_notification(ticket, 'created')
-            messages.success(request, f"Ticket {ticket.number} créé avec succès.")
-            return redirect('tickets:detail', number=ticket.number)
+                ticket.delete()  # rollback du ticket déjà sauvegardé
+            else:
+                for f in files:
+                    Attachment.objects.create(
+                        ticket=ticket, file=f, filename=f.name,
+                        file_size=f.size, content_type=f.content_type or '',
+                        uploaded_by=request.user
+                    )
+                send_ticket_notification(ticket, 'created')
+                messages.success(request, f"Ticket {ticket.number} créé avec succès.")
+                return redirect('tickets:detail', number=ticket.number)
     else:
         form = TicketCreateForm(user=request.user)
-    return render(request, 'tickets/ticket_create.html', {'form': form})
+
+    # Map category_id → type for JS (no-SLA detection)
+    category_types_json = json.dumps({
+        str(c.pk): c.type for c in Category.objects.filter(is_active=True)
+    })
+    return render(request, 'tickets/ticket_create.html', {
+        'form': form,
+        'category_types_json': category_types_json,
+    })
 
 
 @login_required
 def ticket_edit(request, number):
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucune modification n'est possible.")
         return redirect('tickets:detail', number=number)
-    if not (request.user.role in [User.ROLE_ADMIN, User.ROLE_AGENT] or
+    if not (request.user.role == User.ROLE_ADMIN or
+            (request.user.role == User.ROLE_AGENT and ticket.status not in Ticket.ADMIN_ONLY_STATUSES) or
             (ticket.status == Ticket.STATUS_NOUVEAU and ticket.created_by == request.user)):
         messages.error(request, "Modification non autorisée.")
         return redirect('tickets:detail', number=number)
@@ -307,6 +373,30 @@ def ticket_edit(request, number):
                     old_value=str(old_vals.get(field, '')),
                     new_value=str(getattr(ticket, field, '')),
                 )
+            # Pièces jointes optionnelles
+            oversized = []
+            accepted = 0
+            for f in request.FILES.getlist('files'):
+                if f.size > MAX_ATTACHMENT_SIZE:
+                    oversized.append(f.name)
+                    continue
+                Attachment.objects.create(
+                    ticket=ticket, file=f, filename=f.name,
+                    file_size=f.size, content_type=f.content_type or '',
+                    uploaded_by=request.user
+                )
+                TicketHistory.objects.create(
+                    ticket=ticket, user=request.user,
+                    action=f"Pièce jointe : {f.name}"
+                )
+                accepted += 1
+            if oversized:
+                noms = ', '.join(oversized)
+                messages.warning(
+                    request,
+                    f"Fichier(s) ignoré(s) car supérieur(s) à 1 Mo : {noms}. "
+                    "Utilisez l'outil interne de transfert de fichiers."
+                )
             messages.success(request, "Ticket mis à jour.")
             return redirect('tickets:detail', number=number)
     else:
@@ -317,7 +407,7 @@ def ticket_edit(request, number):
 @login_required
 def ticket_change_status(request, number):
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucune modification n'est possible.")
         return redirect('tickets:detail', number=number)
     if not ticket.can_user_see(request.user):
@@ -347,10 +437,8 @@ def ticket_change_status(request, number):
 
             # Dates clés
             if new_status == Ticket.STATUS_AFFECTE and not ticket.assigned_at:
-                ticket.assigned_at = timezone.now()
-                # Vérifier SLA prise en charge
-                if ticket.sla_response_deadline and timezone.now() > ticket.sla_response_deadline:
-                    ticket.sla_response_exceeded = True
+                # Démarre le SLA traitement (et enregistre le dépassement prise en charge si besoin)
+                ticket.reset_sla_on_assign()
 
             if new_status == Ticket.STATUS_EN_COURS and not ticket.assigned_at:
                 ticket.assigned_at = timezone.now()
@@ -399,7 +487,7 @@ def ticket_assign(request, number):
     ticket = get_object_or_404(Ticket, number=number)
     user = request.user
 
-    if ticket.is_locked:
+    if ticket.is_locked_for(user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucune modification n'est possible.")
         return redirect('tickets:detail', number=number)
 
@@ -429,15 +517,51 @@ def ticket_assign(request, number):
                 old_value=str(old_assignee or ''),
                 new_value=str(ticket.assigned_to or ''),
             )
-            send_ticket_notification(ticket, 'assigned')
-            messages.success(request, f"Ticket affecté à {ticket.assigned_to} — SLA réinitialisé.")
+            if old_assignee and old_assignee != ticket.assigned_to:
+                send_ticket_notification(ticket, 'unassigned', recipient=old_assignee)
+            if ticket.assigned_to:
+                send_ticket_notification(ticket, 'assigned', performer=user)
+            messages.success(request, f"Ticket affecté à {ticket.assigned_to} — SLA réinitialisé." if ticket.assigned_to else "Ticket désaffecté.")
+    return redirect('tickets:detail', number=number)
+
+
+@login_required
+def ticket_takeover(request, number):
+    """Permet à un technicien de s'auto-affecter un ticket d'un collègue (même département, pas encore EN_COURS)."""
+    ticket = get_object_or_404(Ticket, number=number)
+    user = request.user
+
+    if not ticket.can_technicien_takeover(user):
+        messages.error(request, "Vous ne pouvez pas prendre en charge ce ticket.")
+        return redirect('tickets:detail', number=number)
+
+    if request.method == 'POST':
+        old_assignee = ticket.assigned_to
+        ticket.assigned_to = user
+        ticket.responsable = user
+        ticket.reset_sla_on_assign()
+        if ticket.status == Ticket.STATUS_NOUVEAU:
+            ticket.status = Ticket.STATUS_AFFECTE
+            ticket.assigned_at = timezone.now()
+        ticket.save()
+        TicketHistory.objects.create(
+            ticket=ticket, user=user,
+            action=f"Prise en charge par {user} (remplace {old_assignee})",
+            field_name='assigned_to',
+            old_value=str(old_assignee or ''),
+            new_value=str(user),
+        )
+        if old_assignee:
+            send_ticket_notification(ticket, 'unassigned', recipient=old_assignee)
+        send_ticket_notification(ticket, 'assigned', performer=user)
+        messages.success(request, "Vous avez pris en charge ce ticket.")
     return redirect('tickets:detail', number=number)
 
 
 @login_required
 def ticket_request_info(request, number):
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         return redirect('tickets:detail', number=number)
     if request.method == 'POST':
         form = TicketRequestInfoForm(request.POST)
@@ -470,7 +594,7 @@ def ticket_request_info(request, number):
 @login_required
 def add_comment(request, number):
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — les commentaires ne sont plus acceptés.")
         return redirect('tickets:detail', number=number)
     if not ticket.can_user_see(request.user):
@@ -518,12 +642,17 @@ def add_comment(request, number):
 @login_required
 def add_attachment(request, number):
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucun ajout de pièce jointe n'est possible.")
         return redirect('tickets:detail', number=number)
     if request.method == 'POST':
         files = request.FILES.getlist('files')
+        oversized = []
+        accepted = 0
         for f in files:
+            if f.size > MAX_ATTACHMENT_SIZE:
+                oversized.append(f.name)
+                continue
             Attachment.objects.create(
                 ticket=ticket, file=f, filename=f.name,
                 file_size=f.size, content_type=f.content_type or '',
@@ -533,7 +662,58 @@ def add_attachment(request, number):
                 ticket=ticket, user=request.user,
                 action=f"Pièce jointe : {f.name}"
             )
-        messages.success(request, f"{len(files)} fichier(s) ajouté(s).")
+            accepted += 1
+        if accepted:
+            messages.success(request, f"{accepted} fichier(s) ajouté(s).")
+        if oversized:
+            noms = ', '.join(oversized)
+            messages.warning(
+                request,
+                f"Fichier(s) ignoré(s) car supérieur(s) à 1 Mo : {noms}. "
+                "Pour les fichiers volumineux, utilisez l'outil interne de transfert de fichiers."
+            )
+    return redirect('tickets:detail', number=number)
+
+
+@login_required
+def ticket_set_duration(request, number):
+    """Définir la durée estimée de traitement (agent de support ou manager responsable du ticket)."""
+    ticket = get_object_or_404(Ticket, number=number)
+    user = request.user
+
+    # Vérification du rôle et de la responsabilité
+    authorized = False
+    if user.role in (User.ROLE_ADMIN, User.ROLE_AGENT):
+        authorized = True
+    elif user.role == User.ROLE_MANAGER:
+        authorized = (
+            (ticket.category_id and ticket.category.it_team_id == user.department_id) or
+            ticket.assigned_to_id == user.pk
+        )
+
+    if not authorized:
+        messages.error(request, "Non autorisé. Seul l'agent de support ou le manager responsable peut définir la durée.")
+        return redirect('tickets:detail', number=number)
+
+    no_sla_types = (Category.EVOLUTION, Category.TACHE_PROJET)
+    if not ticket.category_id or ticket.category.type not in no_sla_types:
+        messages.error(request, "La durée estimée s'applique uniquement aux tickets Évolution et Tâche Projet.")
+        return redirect('tickets:detail', number=number)
+
+    if request.method == 'POST':
+        form = TicketDurationForm(ticket=ticket, data=request.POST)
+        if form.is_valid():
+            old = ticket.estimated_duration_hours
+            new = form.cleaned_data.get('estimated_duration_hours')
+            ticket.estimated_duration_hours = new
+            ticket.save(update_fields=['estimated_duration_hours', 'updated_at'])
+            TicketHistory.objects.create(
+                ticket=ticket, user=user,
+                action=f"Durée estimée : {old or '—'}h → {new or '—'}h",
+                field_name='estimated_duration_hours',
+                old_value=str(old or ''), new_value=str(new or ''),
+            )
+            messages.success(request, "Durée estimée mise à jour.")
     return redirect('tickets:detail', number=number)
 
 
@@ -541,7 +721,7 @@ def add_attachment(request, number):
 def ticket_change_priority(request, number):
     """Redéfinir la priorité d'un ticket et réinitialiser le SLA (admin/agent)."""
     ticket = get_object_or_404(Ticket, number=number)
-    if ticket.is_locked:
+    if ticket.is_locked_for(request.user):
         messages.error(request, f"Ce ticket est {ticket.get_status_display().lower()} — aucune modification n'est possible.")
         return redirect('tickets:detail', number=number)
     if request.user.role not in [User.ROLE_ADMIN, User.ROLE_AGENT]:
@@ -727,6 +907,13 @@ def ticket_respond_info(request, number):
 
             # Pièces jointes optionnelles
             for f in request.FILES.getlist('files'):
+                if f.size > MAX_ATTACHMENT_SIZE:
+                    messages.warning(
+                        request,
+                        f"Fichier ignoré (supérieur à 1 Mo) : {f.name}. "
+                        "Utilisez l'outil interne de transfert de fichiers pour les fichiers volumineux."
+                    )
+                    continue
                 Attachment.objects.create(
                     ticket=ticket, file=f, filename=f.name,
                     file_size=f.size, content_type=f.content_type or '',

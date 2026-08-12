@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ action }} une story — {{ project.name }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
+<li class="breadcrumb-item"><a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a></li>
+{% if story %}<li class="breadcrumb-item"><a href="{% url 'projects:story_detail' project.pk story.pk %}">{{ story.title|truncatechars:30 }}</a></li>{% endif %}
+<li class="breadcrumb-item active">{{ action }}</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.story-form-card { background: #fff; border: 1px solid #dee2e6; border-radius: 8px; }
+.story-sidebar-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #6c757d; margin-bottom: 4px; }
+.priority-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 500; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-card-text me-2 text-orange"></i>{{ action }} une User Story</h1>
+    <small class="text-muted">{{ project.name }}</small>
+  </div>
+  <a href="{% if story %}{% url 'projects:story_detail' project.pk story.pk %}{% else %}{% url 'projects:detail' project.pk %}{% endif %}"
+     class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-x me-1"></i>Annuler
+  </a>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="row g-3">
+
+    <!-- Main content -->
+    <div class="col-lg-8">
+      <div class="story-form-card p-4 mb-3">
+        <div class="mb-3">
+          {{ form.title.label_tag }}
+          {{ form.title }}
+          {% if form.title.errors %}<div class="invalid-feedback d-block">{{ form.title.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          {{ form.description.label_tag }}
+          {{ form.description }}
+          <div class="form-text">Décrivez la fonctionnalité du point de vue utilisateur. <em>En tant que…, je veux…, afin de…</em></div>
+        </div>
+        <div class="mb-0">
+          {{ form.acceptance_criteria.label_tag }}
+          {{ form.acceptance_criteria }}
+          <div class="form-text">Critères vérifiables indiquant que la story est terminée.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <div class="story-form-card p-3 mb-3">
+
+        <div class="mb-3">
+          <div class="story-sidebar-label">Statut</div>
+          {{ form.status }}
+          {% if form.status.errors %}<div class="invalid-feedback d-block">{{ form.status.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+          <div class="story-sidebar-label">Priorité</div>
+          {{ form.priority }}
+        </div>
+
+        <div class="mb-3">
+          <div class="story-sidebar-label">Epic</div>
+          {{ form.epic }}
+        </div>
+
+        <div class="mb-3">
+          <div class="story-sidebar-label">Sprint</div>
+          {{ form.sprint }}
+        </div>
+
+        <div class="mb-3">
+          <div class="story-sidebar-label">Assigné à</div>
+          {{ form.assignee }}
+        </div>
+
+        <div class="mb-0">
+          <div class="story-sidebar-label">Story Points</div>
+          {{ form.story_points }}
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check-lg me-1"></i>{{ action }} la story
+        </button>
+        <a href="{% if story %}{% url 'projects:story_detail' project.pk story.pk %}{% else %}{% url 'projects:detail' project.pk %}{% endif %}"
+           class="btn btn-outline-secondary">Annuler</a>
+      </div>
+    </div>
+
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add Bootstrap classes to all form fields
+document.querySelectorAll('.story-form-card input, .story-form-card textarea, .story-form-card select').forEach(el => {
+  if (!el.classList.contains('btn') && el.type !== 'hidden') {
+    el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+  }
+});
+</script>
+{% endblock %}

@@ -1,9 +1,32 @@
 from django.urls import path
 from . import views
+from . import registration_views
 
 app_name = 'accounts'
 
 urlpatterns = [
+    # ── Inscription ─────────────────────────────────────────────────────────
+    path('register/', registration_views.register, name='register'),
+    path('verify-email/', registration_views.verify_email, name='verify_email'),
+    path('resend-code/', registration_views.resend_code, name='resend_code'),
+
+    # ── Réinitialisation MDP par code 8 caractères ──────────────────────────
+    path('password/reset/verify/', registration_views.password_reset_verify, name='password_reset_verify'),
+    path('password/reset/resend/', registration_views.password_reset_resend, name='password_reset_resend'),
+    path('password/reset/change/', registration_views.password_reset_change, name='password_reset_change'),
+
+    # ── Connexion par code email (fallback Keycloak) ─────────────────────────
+    path('login/magic/', registration_views.magic_login, name='magic_login'),
+    path('login/magic/verify/', registration_views.magic_login_verify, name='magic_login_verify'),
+    path('login/magic/resend/', registration_views.magic_login_resend, name='magic_login_resend'),
+
+    # ── Admin — upload employés autorisés ────────────────────────────────────
+    path('admin/upload-employees/', registration_views.upload_employees, name='upload_employees'),
+
+    # ── Onboarding — choix département (première connexion) ─────────────────
+    path('setup/department/', views.choose_department, name='choose_department'),
+
+    # ── Gestion utilisateurs ─────────────────────────────────────────────────
     path('profile/', views.profile_view, name='profile'),
     path('users/', views.UserListView.as_view(), name='user_list'),
     path('users/new/', views.UserCreateView.as_view(), name='user_create'),

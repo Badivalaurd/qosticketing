@@ -1,4 +1,4 @@
-"""
+﻿"""
 Script de configuration initiale.
 Exécuter après 'python manage.py migrate' :
     python setup_initial_data.py
@@ -16,42 +16,57 @@ from apps.knowledge_base.models import KBCategory
 
 def create_departments():
     print("Création des départements...")
-    depts_data = [
-        ('Département Informatique', 'DSI', True),
-        ('Direction Générale', 'DG', False),
-        ('Direction Financière', 'DAF', False),
-        ('Direction Commerciale', 'DCOM', False),
-        ('Direction des Ressources Humaines', 'DRH', False),
-        ('Direction Technique', 'DT', False),
-        ('Direction Marketing', 'DMKT', False),
+    # Parents first, then children
+    parents_data = [
+        # (name, code, is_it, is_placeholder)
+        ('Département Informatique',              'DSI',    True,  False),
+        ('Département Général',                   'DG',     False, False),
+        ('Département Administratif et Financier','DAF',    False, False),
+        ('Département Commercial',                'DCOM',   False, False),
+        ('Département des Ressources Humaines',   'DRH',    False, False),
+        ('Département Technique',                 'DT',     False, False),
+        ('Département Marketing',                 'DMKT',   False, False),
+        ('Sans Département',                      'NO-DEPT',False, True),
     ]
     objs = {}
-    for name, code, is_it in depts_data:
+    for name, code, is_it, is_ph in parents_data:
         d, created = Department.objects.get_or_create(
-            code=code, defaults={'name': name, 'is_it_department': is_it}
+            code=code, defaults={'name': name, 'is_it_department': is_it, 'is_placeholder': is_ph}
         )
         if not created and is_it and not d.is_it_department:
             d.is_it_department = True
             d.save()
         objs[code] = d
-        print(f"  {'Créé' if created else 'Existant'}: {d} {'[IT]' if d.is_it_department else ''}")
+        tag = '[IT]' if d.is_it_department else ('[provisoire]' if d.is_placeholder else '')
+        print(f"  {'Créé' if created else 'Existant'}: {d} {tag}")
+
+    # Sous-départements IT (héritent is_it via Department.save())
+    children_data = [
+        ("Maîtrise d'Ouvrage", 'MOA',   'DSI'),
+        ('SI / QoS',           'SIQOS', 'DSI'),
+    ]
+    for name, code, parent_code in children_data:
+        parent = objs.get(parent_code)
+        d, created = Department.objects.get_or_create(
+            code=code, defaults={'name': name, 'is_it_department': True, 'parent': parent}
+        )
+        if not created and parent and not d.parent:
+            d.parent = parent
+            d.save()
+        objs[code] = d
+        print(f"  {'Créé' if created else 'Existant'}: {d} [IT sous-dept de {parent_code}]")
     return objs
 
 
 def create_users(depts):
     print("Création des utilisateurs...")
-    users_data = [
-        ('admin',        'Admin',   'Système',    'admin@qos.local',        'admin@123',    User.ROLE_ADMIN,       'DSI'),
-        ('manager_dsi',  'Jean',    'Kouassi',    'jkouassi@qos.local',     'password123',  User.ROLE_MANAGER,     'DSI'),
-        ('manager_daf',  'Fatou',   'Coulibaly',  'fcoulibaly@qos.local',   'password123',  User.ROLE_MANAGER,     'DAF'),
-        ('agent_01',     'Marie',   'Bamba',      'mbamba@qos.local',       'password123',  User.ROLE_AGENT,       'DSI'),
-        ('tech_01',      'Pierre',  'Traoré',     'ptraore@qos.local',      'password123',  User.ROLE_TECHNICIEN,  'DSI'),
-        ('tech_02',      'Awa',     'Diomandé',   'adiomande@qos.local',    'password123',  User.ROLE_TECHNICIEN,  'DSI'),
-        ('demandeur_01', 'Alice',   "N'Guessan",  'anguessan@qos.local',    'password123',  User.ROLE_DEMANDEUR,   'DCOM'),
-        ('demandeur_02', 'Robert',  'Diallo',     'rdiallo@qos.local',      'password123',  User.ROLE_DEMANDEUR,   'DAF'),
-        ('obs_01',       'Soro',    'Bintou',     'sbintou@qos.local',      'password123',  User.ROLE_OBSERVATEUR, 'DSI'),
+    # Uniquement les 2 comptes génériques — skip si déjà existants
+    admin_email = os.getenv('ADMIN_EMAIL', 'admin@omcm.local')
+    users = [
+        ('admin_omcm', 'Admin', 'OMCM',    admin_email,       'admin@123',  User.ROLE_ADMIN, 'DSI'),
+        ('agent_omcm', 'Agent', 'Support', 'agent@omcm.local', 'agent@123',  User.ROLE_AGENT, 'DSI'),
     ]
-    for username, first, last, email, pwd, role, dept_code in users_data:
+    for username, first, last, email, pwd, role, dept_code in users:
         if not User.objects.filter(username=username).exists():
             u = User.objects.create_user(
                 username=username, first_name=first, last_name=last,
@@ -65,14 +80,18 @@ def create_users(depts):
             print(f"  Existant: {username}")
 
 
-def create_categories():
+def create_categories(depts):
     print("Création des catégories...")
+    moa = depts.get('MOA')
+    siqos = depts.get('SIQOS')
+
+    # (type, name, icon, color, it_team)
     cats = [
-        (Category.INCIDENT,     'Incident',             'bi-exclamation-triangle', 'danger'),
-        (Category.EVOLUTION,    "Demande d'Évolution",  'bi-lightbulb',            'primary'),
-        (Category.SUPPORT,      'Support Fonctionnel',  'bi-headset',              'info'),
-        (Category.PONCTUEL,     'Demande Ponctuelle',   'bi-clipboard-check',      'warning'),
-        (Category.TACHE_PROJET, 'Tâche Projet',         'bi-kanban',               'success'),
+        (Category.INCIDENT,     'Incident',             'bi-exclamation-triangle', 'danger',  siqos),
+        (Category.EVOLUTION,    "Demande d'Évolution",  'bi-lightbulb',            'primary', moa),
+        (Category.SUPPORT,      'Support Fonctionnel',  'bi-headset',              'info',    siqos),
+        (Category.PONCTUEL,     'Demande Ponctuelle',   'bi-clipboard-check',      'warning', siqos),
+        (Category.TACHE_PROJET, 'Tâche Projet',         'bi-kanban',               'success', moa),
     ]
     subs = {
         Category.INCIDENT:     ['Application indisponible', 'Erreur transaction', 'Panne interface', 'Lenteur'],
@@ -81,10 +100,13 @@ def create_categories():
         Category.PONCTUEL:     ['Extraction données', 'Paramétrage exceptionnel', 'Déblocage'],
         Category.TACHE_PROJET: ['Développement', 'Tests', 'Documentation', 'Déploiement'],
     }
-    for type_, name, icon, color in cats:
-        cat, _ = Category.objects.get_or_create(type=type_, defaults={
-            'name': name, 'icon': icon, 'color': color
+    for type_, name, icon, color, it_team in cats:
+        cat, created = Category.objects.get_or_create(type=type_, defaults={
+            'name': name, 'icon': icon, 'color': color, 'it_team': it_team
         })
+        if not created and it_team and cat.it_team != it_team:
+            cat.it_team = it_team
+            cat.save(update_fields=['it_team'])
         for sub_name in subs.get(type_, []):
             SubCategory.objects.get_or_create(category=cat, name=sub_name)
     print("  Catégories et sous-catégories créées.")
@@ -92,16 +114,23 @@ def create_categories():
 
 def create_applications(depts):
     print("Création des applications...")
+    dsi = depts.get('DSI')
     apps = [
-        ('Core Banking System', 'CBS',    depts.get('DSI')),
-        ('ERP Finance',         'ERP',    depts.get('DAF')),
-        ('CRM Commercial',      'CRM',    depts.get('DCOM')),
-        ('SIRH',                'SIRH',   depts.get('DRH')),
-        ('Portail Client',      'PORTAL', depts.get('DCOM')),
-        ('Reporting BI',        'BI',     depts.get('DSI')),
+        ('Tango',                'TANGO',   dsi, 'Core Banking System — traitement des transactions Orange Money'),
+        ('Global Reporting',     'GREPORT', dsi, 'Plateforme de reporting proposée aux partenaires'),
+        ('Customer Care',        'CC',      dsi, 'Système de gestion de la relation client'),
+        ('OMAPI',                'OMAPI',   dsi, 'API Orange Money — intégration partenaires'),
+        ('IRT Sortant',          'IRTS',    dsi, 'Système de traitement des paiements sortants'),
+        ('IRT Entrant',          'IRTE',    dsi, 'Système de traitement des paiements entrants'),
+        ('Eneo Prepaid',         'ENEOPRE', dsi, 'Paiement factures Eneo — électricité prépayée'),
+        ('Eneo Postpaid',        'ENEOPOS', dsi, 'Paiement factures Eneo — électricité postpayée'),
+        ('CAMWATER',             'CAMW',    dsi, 'Paiement factures CAMWATER — eau'),
+        ('Posome',               'POSOME',  dsi, 'Système de collecte et reversement'),
+        ('Facturier Générique',  'FACTGEN', dsi, 'Moteur de facturation générique multi-services'),
+        ('Autre',                'AUTRE',   dsi, 'Application non listée ou transverse'),
     ]
-    for name, code, dept in apps:
-        Application.objects.get_or_create(code=code, defaults={'name': name, 'department': dept})
+    for name, code, dept, desc in apps:
+        Application.objects.get_or_create(code=code, defaults={'name': name, 'department': dept, 'description': desc})
 
 
 def create_sla_configs():
@@ -133,23 +162,20 @@ def create_kb_categories():
 
 
 if __name__ == '__main__':
-    print("=== Initialisation des données QoS Ticketing ===\n")
+    print("=== Initialisation des données ITTIS ===\n")
     depts = create_departments()
     create_users(depts)
-    create_categories()
+    create_categories(depts)
     create_applications(depts)
     create_sla_configs()
     create_kb_categories()
     print("\n=== Terminé ! ===")
-    print("\nComptes créés:")
-    print("  admin / admin@123              (Administrateur)")
-    print("  manager_dsi / password123      (Manager — DSI)")
-    print("  manager_daf / password123      (Manager — DAF)")
-    print("  agent_01 / password123         (Agent de Support)")
-    print("  tech_01 / password123          (Technicien)")
-    print("  demandeur_01 / password123     (Demandeur — DCOM)")
+    print("\nComptes génériques:")
+    print("  admin_omcm / admin@123  (Administrateur)")
+    print("  agent_omcm / agent@123  (Agent de Support)")
+    print("  → Modifiez email et mot de passe depuis l'admin Django après le premier login.")
     print("\nURLs:")
-    print("  Dashboard : http://localhost:8000/dashboard/")
-    print("  Admin     : http://localhost:8000/admin/")
-    print("  API Docs  : http://localhost:8000/api/docs/")
-    print("  SLA Config: http://localhost:8000/tickets/sla-config/")
+    print("  Dashboard    : http://localhost:8000/dashboard/")
+    print("  Admin Django : http://localhost:8000/omcm-backoffice/")
+    print("  API Docs     : http://localhost:8000/api/docs/")
+    print("  SLA Config   : http://localhost:8000/tickets/sla-config/")

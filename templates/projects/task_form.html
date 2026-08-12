@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}{{ action }} une tâche — {{ story.title|truncatechars:40 }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
+<li class="breadcrumb-item"><a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a></li>
+<li class="breadcrumb-item"><a href="{% url 'projects:story_detail' project.pk story.pk %}">{{ story.title|truncatechars:30 }}</a></li>
+<li class="breadcrumb-item active">{{ action }} une tâche</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-check2-square me-2 text-orange"></i>{{ action }} une tâche</h1>
+    <small class="text-muted">{{ story.title|truncatechars:60 }}</small>
+  </div>
+  <a href="{% url 'projects:story_detail' project.pk story.pk %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Retour
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-body p-4">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ form.title.label }}</label>
+            <input type="text" name="title" value="{{ form.title.value|default:'' }}" class="form-control" required>
+            {% if form.title.errors %}<div class="invalid-feedback d-block">{{ form.title.errors.0 }}</div>{% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ form.description.label }}</label>
+            <textarea name="description" rows="3" class="form-control">{{ form.description.value|default:'' }}</textarea>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">{{ form.status.label }}</label>
+              <select name="status" class="form-select">
+                {% for val, label in form.fields.status.choices %}
+                <option value="{{ val }}" {% if form.status.value == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">{{ form.assignee.label }}</label>
+              <select name="assignee" class="form-select">
+                <option value="">— Non assigné —</option>
+                {% for user in form.fields.assignee.queryset %}
+                <option value="{{ user.pk }}" {% if form.assignee.value == user.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ user.get_full_name|default:user.username }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">{{ form.estimated_hours.label }}</label>
+              <input type="number" name="estimated_hours" value="{{ form.estimated_hours.value|default:'0' }}"
+                     class="form-control" min="0" step="0.5">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">{{ form.actual_hours.label }}</label>
+              <input type="number" name="actual_hours" value="{{ form.actual_hours.value|default:'0' }}"
+                     class="form-control" min="0" step="0.5">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">{{ form.due_date.label }}</label>
+              <input type="date" name="due_date" value="{{ form.due_date.value|default:'' }}" class="form-control">
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 justify-content-end">
+            <a href="{% url 'projects:story_detail' project.pk story.pk %}" class="btn btn-outline-secondary">Annuler</a>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>Enregistrer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -72,12 +72,20 @@ def dashboard(request):
         Q(sla_response_deadline__lt=now) | Q(sla_resolution_deadline__lt=now)
     ).filter(status__in=open_statuses).order_by('sla_resolution_deadline')[:5]
 
-    # ---- File d'attente agent (tickets NOUVEAU non affectés) ----
-    agent_queue = []
-    if user.role in [User.ROLE_ADMIN, User.ROLE_AGENT]:
-        agent_queue = tickets_qs.filter(
-            status=Ticket.STATUS_NOUVEAU, assigned_to=None
-        ).order_by('priority', 'created_at')[:10]
+    # ---- File d'attente "À affecter" (admin, agent, manager) ----
+    show_pending_queue = user.role in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_MANAGER]
+    pending_queue = []
+    pending_queue_count = 0
+    if show_pending_queue:
+        pending_queue = list(
+            tickets_qs.filter(
+                status=Ticket.STATUS_NOUVEAU, assigned_to=None
+            ).select_related('category', 'created_by', 'department')
+            .order_by('priority', 'created_at')[:20]
+        )
+        pending_queue_count = len(pending_queue)
+    # Garder agent_queue pour rétro-compatibilité éventuelle
+    agent_queue = pending_queue
 
     # ---- Mes tickets en cours (technicien) ----
     my_assigned = []
@@ -85,6 +93,24 @@ def dashboard(request):
         my_assigned = tickets_qs.filter(
             assigned_to=user, status__in=open_statuses
         ).order_by('-created_at')[:10]
+
+    # ---- Graphes agent/admin : envoyées vs traitées + SLA ----
+    show_agent_charts = user.role in [User.ROLE_ADMIN, User.ROLE_AGENT]
+    trend_resolved_data = []
+    sla_in = sla_out_count = 0
+    if show_agent_charts:
+        for i in range(13, -1, -1):
+            d = (now - timedelta(days=i)).date()
+            trend_resolved_data.append(
+                tickets_qs.filter(
+                    Q(resolved_at__date=d) | Q(closed_at__date=d)
+                ).count()
+            )
+        resolved_qs = tickets_qs.filter(
+            status__in=[Ticket.STATUS_RESOLU, Ticket.STATUS_CLOTURE]
+        )
+        sla_in = resolved_qs.filter(resolved_out_of_sla=False).count()
+        sla_out_count = resolved_qs.filter(resolved_out_of_sla=True).count()
 
     context = {
         'total_open': total_open,
@@ -103,6 +129,14 @@ def dashboard(request):
         'trend_labels_json': json.dumps(trend_labels),
         'trend_data_json': json.dumps(trend_data),
         'overdue_tickets': overdue,
+        'pending_queue': pending_queue,
+        'pending_queue_count': pending_queue_count,
+        'show_pending_queue': show_pending_queue,
+        'show_agent_charts': show_agent_charts,
+        'trend_resolved_json': json.dumps(trend_resolved_data),
+        'sla_in': sla_in,
+        'sla_out_count': sla_out_count,
+        'sla_perf_json': json.dumps({'Dans les SLA': sla_in, 'Hors SLA': sla_out_count}),
     }
     return render(request, 'dashboard/dashboard.html', context)
 

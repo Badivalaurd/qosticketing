@@ -2,17 +2,19 @@ from django.urls import reverse
 from .models import Notification
 
 
-def send_ticket_notification(ticket, event, recipient=None):
+def send_ticket_notification(ticket, event, recipient=None, performer=None):
     """
     Crée les notifications in-app ET déclenche les emails.
 
     Routage :
     - created       → admins + agents SI (si dept IT) OU manager du dept cible
-    - assigned      → demandeur + technicien assigné
+    - assigned      → demandeur + technicien assigné (sauf l'auteur de l'affectation)
     - status_changed→ demandeur + technicien assigné
     - comment_added → demandeur + technicien assigné
     - sla_exceeded  → technicien assigné + admins
     - mentioned     → utilisateur mentionné
+
+    performer : utilisateur qui déclenche l'action (exclu des destinataires pour 'assigned')
     """
     from apps.accounts.models import User
 
@@ -22,9 +24,10 @@ def send_ticket_notification(ticket, event, recipient=None):
         recipients = _recipients_for_created(ticket)
 
     elif event == 'assigned':
-        if ticket.assigned_to:
+        if ticket.assigned_to and ticket.assigned_to != performer:
             recipients.add(ticket.assigned_to)
-        recipients.add(ticket.created_by)
+        if ticket.created_by != performer:
+            recipients.add(ticket.created_by)
 
     elif event == 'status_changed':
         recipients.add(ticket.created_by)
@@ -37,10 +40,14 @@ def send_ticket_notification(ticket, event, recipient=None):
             recipients.add(ticket.assigned_to)
 
     elif event == 'sla_exceeded':
+        recipients.add(ticket.created_by)
         if ticket.assigned_to:
             recipients.add(ticket.assigned_to)
         for u in User.objects.filter(role=User.ROLE_ADMIN, is_active=True):
             recipients.add(u)
+
+    elif event == 'unassigned' and recipient:
+        recipients.add(recipient)
 
     elif event == 'mentioned' and recipient:
         recipients.add(recipient)
@@ -59,6 +66,7 @@ def send_ticket_notification(ticket, event, recipient=None):
     event_titles = {
         'created':        f"Nouveau ticket {ticket.number}",
         'assigned':       f"Ticket {ticket.number} affecté",
+        'unassigned':     f"Ticket {ticket.number} — désaffecté",
         'status_changed': f"Ticket {ticket.number} — statut modifié",
         'comment_added':  f"Commentaire sur {ticket.number}",
         'sla_exceeded':   f"SLA dépassé — {ticket.number}",
@@ -69,6 +77,7 @@ def send_ticket_notification(ticket, event, recipient=None):
     event_messages = {
         'created':        f"Le ticket «{ticket.title}» a été créé.",
         'assigned':       f"Le ticket «{ticket.title}» vous a été affecté.",
+        'unassigned':     f"Le ticket «{ticket.title}» ne vous est plus affecté.",
         'status_changed': f"Statut : «{ticket.get_status_display()}».",
         'comment_added':  f"Nouveau commentaire sur «{ticket.title}».",
         'sla_exceeded':   f"SLA dépassé sur «{ticket.title}».",
@@ -79,6 +88,7 @@ def send_ticket_notification(ticket, event, recipient=None):
     event_types = {
         'created':        Notification.TYPE_INFO,
         'assigned':       Notification.TYPE_INFO,
+        'unassigned':     Notification.TYPE_WARNING,
         'status_changed': Notification.TYPE_SUCCESS,
         'comment_added':  Notification.TYPE_INFO,
         'sla_exceeded':   Notification.TYPE_DANGER,
@@ -148,33 +158,36 @@ def send_project_notification(project, event, recipient=None, extra_context=None
 def _recipients_for_created(ticket):
     """
     Routage à la création :
-    - Si le ticket est destiné au département IT → admins + agents SI
-    - Sinon → manager du département cible
+    - ticket.target_department set (non-IT dept) → manager du dept cible + admins
+    - ticket IT avec category.it_team set → manager du sous-dept IT (MOA/SI-QoS) + admins
+    - sinon → admins + agents de support (routage IT général)
     """
-    from apps.accounts.models import User, Department
+    from apps.accounts.models import User
     recipients = set()
+    admins = list(User.objects.filter(role=User.ROLE_ADMIN, is_active=True))
 
-    target_dept = ticket.target_department or ticket.department
-    is_it_target = target_dept and target_dept.is_it_department if target_dept else False
-
-    if is_it_target or target_dept is None:
-        # Notifier admins et agents SI
+    if ticket.target_department and not ticket.target_department.is_it_department:
+        # Ticket explicitement redirigé vers un dept non-IT
         for u in User.objects.filter(
-            role__in=[User.ROLE_ADMIN, User.ROLE_AGENT],
-            is_active=True,
+            role=User.ROLE_MANAGER, department=ticket.target_department, is_active=True
         ):
             recipients.add(u)
-    else:
-        # Notifier le manager du département cible
-        for u in User.objects.filter(
-            role=User.ROLE_MANAGER,
-            department=target_dept,
-            is_active=True,
-        ):
-            recipients.add(u)
-        # + les admins toujours en copie
-        for u in User.objects.filter(role=User.ROLE_ADMIN, is_active=True):
-            recipients.add(u)
+        recipients.update(admins)
+        return recipients
+
+    # Ticket IT : agents de support + admins (toujours)
+    for u in User.objects.filter(role=User.ROLE_AGENT, is_active=True):
+        recipients.add(u)
+    recipients.update(admins)
+
+    # En plus : manager du sous-département IT responsable (MOA ou SI/QoS)
+    if ticket.category_id:
+        try:
+            it_team = ticket.category.it_team
+            if it_team and it_team.manager:
+                recipients.add(it_team.manager)
+        except Exception:
+            pass
 
     return recipients
 
@@ -199,6 +212,7 @@ def _send_ticket_emails(ticket, event, recipients, url, titles, messages):
         template_map = {
             'created':        'ticket_created.html',
             'assigned':       'ticket_assigned.html',
+            'unassigned':     'ticket_generic.html',
             'status_changed': 'ticket_status_changed.html',
             'comment_added':  'ticket_comment.html',
             'sla_exceeded':   'sla_exceeded.html',

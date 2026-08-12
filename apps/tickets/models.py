@@ -97,6 +97,11 @@ class Category(models.Model):
     icon = models.CharField('Icône Bootstrap', max_length=50, default='bi-ticket')
     color = models.CharField('Couleur CSS', max_length=30, default='primary')
     is_active = models.BooleanField('Actif', default=True)
+    it_team = models.ForeignKey(
+        'accounts.Department', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='category_team', verbose_name='Sous-département IT responsable',
+        help_text='Sous-département IT qui traite ce type de ticket (MOA, SI/QoS…).'
+    )
 
     class Meta:
         verbose_name = 'Catégorie'
@@ -169,8 +174,10 @@ class Ticket(models.Model):
     SLA_PAUSE_STATUSES = [STATUS_ATTENTE_INFO, STATUS_ATTENTE_PRESTATAIRE]
     # Statuts terminaux (SLA s'arrête)
     SLA_STOP_STATUSES = [STATUS_RESOLU, STATUS_CLOTURE, STATUS_REJETE, STATUS_ANNULE]
-    # Statuts qui verrouillent totalement le ticket (aucune modification possible, même pour l'admin)
-    LOCKED_STATUSES = [STATUS_ANNULE, STATUS_CLOTURE]
+    # Statuts qui verrouillent totalement le ticket pour TOUT LE MONDE (y compris l'admin)
+    LOCKED_STATUSES = [STATUS_ANNULE]
+    # Statuts modifiables uniquement par l'admin (pas l'agent, ni les autres rôles)
+    ADMIN_ONLY_STATUSES = [STATUS_CLOTURE, STATUS_REJETE]
 
     STATUS_COLORS = {
         STATUS_NOUVEAU: 'secondary',
@@ -188,7 +195,7 @@ class Ticket(models.Model):
     number = models.CharField('Numéro', max_length=20, unique=True, editable=False)
 
     # ---- Informations générales ----
-    title = models.CharField('Titre', max_length=500)
+    title = models.CharField('Titre', max_length=150)
     description = models.TextField('Description')
     category = models.ForeignKey(
         Category, on_delete=models.PROTECT, related_name='tickets', verbose_name='Catégorie'
@@ -258,6 +265,12 @@ class Ticket(models.Model):
     # ---- Rejet / Annulation ----
     rejection_reason = models.TextField('Motif de rejet', blank=True)
 
+    # ---- Durée estimée (Évolution / Tâche Projet — pas de SLA) ----
+    estimated_duration_hours = models.PositiveIntegerField(
+        'Durée estimée (heures)', null=True, blank=True,
+        help_text='Durée estimative de traitement. Modifiable par agent de support et manager uniquement.'
+    )
+
     # ---- Lié à un projet ----
     project = models.ForeignKey(
         'projects.Project', null=True, blank=True, on_delete=models.SET_NULL,
@@ -281,15 +294,13 @@ class Ticket(models.Model):
 
     def _generate_number(self):
         from django.db.models import Max
-        from apps.accounts.models import Department
 
-        # La référence identifie le département qui REÇOIT la demande
-        if self.target_department:
+        # Tickets IT (ou sans département cible) → préfixe fixe OMCM-IT
+        # Tickets transférés vers un département non-IT → code du département cible
+        if self.target_department and not self.target_department.is_it_department:
             dept_code = self.target_department.code
         else:
-            # Par défaut : département IT
-            it_dept = Department.objects.filter(is_it_department=True, is_active=True).first()
-            dept_code = it_dept.code if it_dept else 'GEN'
+            dept_code = 'IT'
 
         prefix = f"OMCM-{dept_code}-"
         last = Ticket.objects.filter(number__startswith=prefix).aggregate(Max('number'))['number__max']
@@ -300,21 +311,38 @@ class Ticket(models.Model):
                 seq = 1
         else:
             seq = 1
-        return f"{prefix}{seq:05d}"
+        return f"{prefix}{seq:06d}"
+
+    @property
+    def has_sla(self):
+        """Faux pour Évolution et Tâche Projet — durée estimée à la place du SLA."""
+        if self.category_id:
+            return self.category.type not in (Category.EVOLUTION, Category.TACHE_PROJET)
+        return True
 
     def _init_sla(self):
+        """À la création : démarre uniquement le SLA prise en charge (réponse).
+        Le SLA traitement ne démarrera qu'à l'affectation."""
+        if not self.has_sla:
+            return
         sla = SLAConfig.get_for_priority(self.priority)
-        now = timezone.now()
-        self.sla_response_deadline = now + timedelta(minutes=sla.response_time_minutes)
-        self.sla_resolution_deadline = now + timedelta(minutes=sla.resolution_time_minutes)
+        self.sla_response_deadline = timezone.now() + timedelta(minutes=sla.response_time_minutes)
+        self.sla_resolution_deadline = None  # démarre à l'affectation
 
     def reset_sla_for_priority(self, new_priority):
-        """Réinitialise les SLA selon la nouvelle priorité (depuis maintenant)."""
+        """Réinitialise les SLA selon la nouvelle priorité depuis maintenant.
+        - Avant affectation : recalcule uniquement sla_response_deadline.
+        - Après affectation : recalcule uniquement sla_resolution_deadline."""
         self.priority = new_priority
+        if not self.has_sla:
+            return
         sla = SLAConfig.get_for_priority(new_priority)
         now = timezone.now()
-        self.sla_response_deadline = now + timedelta(minutes=sla.response_time_minutes)
-        self.sla_resolution_deadline = now + timedelta(minutes=sla.resolution_time_minutes)
+        if not self.assigned_at:
+            self.sla_response_deadline = now + timedelta(minutes=sla.response_time_minutes)
+            self.sla_resolution_deadline = None
+        else:
+            self.sla_resolution_deadline = now + timedelta(minutes=sla.resolution_time_minutes)
         self.sla_response_exceeded = False
         self.sla_resolution_exceeded = False
         self.resolved_out_of_sla = False
@@ -326,11 +354,30 @@ class Ticket(models.Model):
 
     def reset_sla_on_assign(self):
         """
-        Réinitialise le SLA depuis le moment de l'affectation.
-        Appelé automatiquement à chaque affectation/réaffectation (logique JIRA).
+        Appelé à chaque affectation/réaffectation.
+        - Enregistre le dépassement de prise en charge si la deadline était passée.
+        - Démarre (ou redémarre) le SLA traitement depuis maintenant.
         """
-        self.reset_sla_for_priority(self.priority)
-        self.assigned_at = timezone.now()
+        if not self.has_sla:
+            self.assigned_at = timezone.now()
+            return
+        now = timezone.now()
+        # Vérifier si la prise en charge était hors délai
+        if self.sla_response_deadline and now > self.sla_response_deadline:
+            self.sla_response_exceeded = True
+        # La prise en charge est terminée : effacer la deadline de réponse
+        self.sla_response_deadline = None
+        # Démarrer le SLA traitement depuis maintenant
+        sla = SLAConfig.get_for_priority(self.priority)
+        self.sla_resolution_deadline = now + timedelta(minutes=sla.resolution_time_minutes)
+        self.sla_resolution_exceeded = False
+        self.resolved_out_of_sla = False
+        self.sla_paused_at = None
+        self.sla_pause_minutes = 0
+        self.sla_warning_1h_sent = False
+        self.sla_warning_30m_sent = False
+        self.sla_warning_10m_sent = False
+        self.assigned_at = now
 
     # ---- SLA helpers ----
     def pause_sla(self):
@@ -351,13 +398,17 @@ class Ticket(models.Model):
             self.sla_paused_at = None
 
     def check_and_update_sla(self):
-        """Vérifie les dépassements SLA. Retourne True si SLA mis à jour."""
+        """Vérifie les dépassements SLA. Retourne True si au moins un flag a changé.
+        - SLA réponse  : clock depuis la création, s'arrête à l'affectation.
+        - SLA traitement : clock depuis l'affectation, indépendant du SLA réponse."""
         now = timezone.now()
         changed = False
+        # Prise en charge : dépassée si deadline passée ET ticket pas encore affecté
         if (self.sla_response_deadline and not self.sla_response_exceeded and
-                self.status not in [self.STATUS_NOUVEAU] and now > self.sla_response_deadline):
+                not self.assigned_at and now > self.sla_response_deadline):
             self.sla_response_exceeded = True
             changed = True
+        # Traitement : dépassé si deadline passée ET ticket dans un statut final
         if (self.sla_resolution_deadline and not self.sla_resolution_exceeded and
                 self.status in self.SLA_STOP_STATUSES and now > self.sla_resolution_deadline):
             self.sla_resolution_exceeded = True
@@ -376,8 +427,21 @@ class Ticket(models.Model):
 
     @property
     def is_locked(self):
-        """True si le ticket est verrouillé — aucune modification permise, même pour l'admin."""
+        """True si le ticket est verrouillé pour tout le monde sans exception (statut ANNULE)."""
         return self.status in self.LOCKED_STATUSES
+
+    def is_locked_for(self, user):
+        """
+        True si ce ticket est non modifiable pour cet utilisateur précis.
+        - ANNULE        → verrouillé pour tous, admin compris
+        - CLOTURE/REJETE → verrouillé pour tous sauf l'admin
+        """
+        from apps.accounts.models import User as U
+        if self.status in self.LOCKED_STATUSES:
+            return True
+        if self.status in self.ADMIN_ONLY_STATUSES:
+            return user.role != U.ROLE_ADMIN
+        return False
 
     @property
     def is_sla_paused(self):
@@ -419,14 +483,15 @@ class Ticket(models.Model):
 
     @property
     def resolution_sla_percent(self):
-        """Pourcentage du temps SLA traitement écoulé (0-100+)."""
-        if not self.sla_resolution_deadline or self.status in self.SLA_STOP_STATUSES:
+        """Pourcentage du temps SLA traitement écoulé (0-100+).
+        Démarre à l'affectation, jamais à la création."""
+        if not self.sla_resolution_deadline or not self.assigned_at or self.status in self.SLA_STOP_STATUSES:
             return None
         sla = SLAConfig.get_for_priority(self.priority)
         total = sla.resolution_time_minutes * 60
         if total == 0:
             return 100
-        elapsed = (timezone.now() - self.created_at).total_seconds() - (self.sla_pause_minutes * 60)
+        elapsed = (timezone.now() - self.assigned_at).total_seconds() - (self.sla_pause_minutes * 60)
         return min(int(elapsed * 100 / total), 150)
 
     @property
@@ -456,8 +521,25 @@ class Ticket(models.Model):
                 return [self.STATUS_NOUVEAU]
             return []
 
-        # AGENT : uniquement rejeter un NOUVEAU et clôturer un RESOLU
+        # Transitions de traitement partagées (technicien, agent/manager assignés)
+        TECH_TRANSITIONS = {
+            self.STATUS_AFFECTE: [self.STATUS_EN_COURS],
+            self.STATUS_EN_COURS: [
+                self.STATUS_ATTENTE_INFO,
+                self.STATUS_ATTENTE_PRESTATAIRE,
+                self.STATUS_RESOLU,
+            ],
+            self.STATUS_ATTENTE_INFO: [self.STATUS_EN_COURS],
+            self.STATUS_ATTENTE_PRESTATAIRE: [self.STATUS_EN_COURS],
+        }
+
+        # AGENT : droits de traitement complets s'il est assigné, sinon rejeter/clôturer
         if role == U.ROLE_AGENT:
+            if self.assigned_to == user:
+                result = TECH_TRANSITIONS.get(self.status, [])
+                if self.status == self.STATUS_RESOLU:
+                    return [self.STATUS_CLOTURE]
+                return result
             if self.status == self.STATUS_NOUVEAU:
                 return [self.STATUS_REJETE]
             if self.status == self.STATUS_RESOLU:
@@ -479,25 +561,27 @@ class Ticket(models.Model):
             # En cours et au-delà : uniquement le technicien assigné
             if self.assigned_to != user:
                 return []
-            transitions_tech = {
-                self.STATUS_EN_COURS: [
-                    self.STATUS_ATTENTE_INFO,
-                    self.STATUS_ATTENTE_PRESTATAIRE,
-                    self.STATUS_RESOLU,
-                ],
-                self.STATUS_ATTENTE_INFO: [self.STATUS_EN_COURS],
-                self.STATUS_ATTENTE_PRESTATAIRE: [self.STATUS_EN_COURS],
-            }
-            return transitions_tech.get(self.status, [])
+            return TECH_TRANSITIONS.get(self.status, [])
 
-        # MANAGER : gestion de son département
+        # MANAGER : gestion de son département ou sous-département IT responsable
+        # + droits de traitement complets s'il est lui-même assigné
         if role == U.ROLE_MANAGER:
             is_my_dept = (
                 self.target_department == user.department or
-                self.department == user.department
+                self.department == user.department or
+                (self.category_id and self.category.it_team_id == user.department_id)
             )
             if not is_my_dept:
                 return []
+            if self.assigned_to == user:
+                # Manager assigné : droits de traitement + management
+                transitions_mgr_assigned = {
+                    self.STATUS_NOUVEAU: [self.STATUS_AFFECTE, self.STATUS_REJETE],
+                    **TECH_TRANSITIONS,
+                    self.STATUS_RESOLU: [self.STATUS_CLOTURE],
+                }
+                return transitions_mgr_assigned.get(self.status, [])
+            # Manager non assigné : droits de management (affecter, suivre)
             transitions_mgr = {
                 self.STATUS_NOUVEAU: [self.STATUS_AFFECTE, self.STATUS_REJETE],
                 self.STATUS_AFFECTE: [self.STATUS_EN_COURS],
@@ -538,7 +622,8 @@ class Ticket(models.Model):
         if user.role == U.ROLE_MANAGER:
             is_my_dept = (
                 self.target_department == user.department or
-                self.department == user.department
+                self.department == user.department or
+                (self.category_id and self.category.it_team_id == user.department_id)
             )
             return is_my_dept and self.status in [self.STATUS_NOUVEAU, self.STATUS_AFFECTE]
         return False
@@ -554,17 +639,46 @@ class Ticket(models.Model):
             if user.is_it_member:
                 return True
             return self.department == user.department
-        # Manager : son département
+        # Manager : son département ou sous-département IT responsable
         if user.role == U.ROLE_MANAGER:
-            return self.target_department == user.department or self.department == user.department
-        # Demandeur : tickets de son département
+            if self.target_department == user.department or self.department == user.department:
+                return True
+            if self.category_id and self.category.it_team_id == user.department_id:
+                return True
+            return False
+        # Demandeur : uniquement les tickets créés par des membres de son équipe
         if user.role == U.ROLE_DEMANDEUR:
-            return self.created_by.department == user.department
+            if not user.department_id:
+                return self.created_by_id == user.pk
+            return self.created_by.department_id == user.department_id
         # Visibilité temporaire : info_requested_from ou responsable courant en ATTENTE_INFO
         if self.status == self.STATUS_ATTENTE_INFO:
             if self.info_requested_from == user or self.responsable == user:
                 return True
         return False
+
+    def can_technicien_takeover(self, user):
+        """
+        Un technicien peut s'auto-affecter un ticket si :
+        - le ticket est affecté à un autre technicien de son département
+        - le ticket n'est pas encore EN_COURS (ni plus avancé)
+        """
+        from apps.accounts.models import User as U
+        if user.role != U.ROLE_TECHNICIEN:
+            return False
+        non_takeable = [
+            self.STATUS_EN_COURS, self.STATUS_ATTENTE_INFO,
+            self.STATUS_ATTENTE_PRESTATAIRE, self.STATUS_RESOLU,
+            self.STATUS_CLOTURE, self.STATUS_REJETE, self.STATUS_ANNULE,
+        ]
+        if self.status in non_takeable:
+            return False
+        return (
+            self.assigned_to_id is not None and
+            self.assigned_to_id != user.pk and
+            self.assigned_to.role == U.ROLE_TECHNICIEN and
+            self.assigned_to.department_id == user.department_id
+        )
 
 
 class TicketHistory(models.Model):

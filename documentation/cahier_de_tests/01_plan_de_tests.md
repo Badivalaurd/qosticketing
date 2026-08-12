@@ -1,6 +1,6 @@
-# Plan de Tests — QoS Ticketing
+﻿# Plan de Tests — ITTIS
 
-**Projet :** QoS Ticketing  
+**Projet :** ITTIS  
 **Version :** 1.0  
 **Date :** Juin 2026  
 **Statut :** Draft  
@@ -10,7 +10,7 @@
 
 ## 1. Objet du document
 
-Ce document définit la stratégie, le périmètre et l'organisation des tests de la plateforme **QoS Ticketing**. Il s'adresse aux équipes de développement, de recette et de pilotage.
+Ce document définit la stratégie, le périmètre et l'organisation des tests de la plateforme **ITTIS**. Il s'adresse aux équipes de développement, de recette et de pilotage.
 
 ---
 

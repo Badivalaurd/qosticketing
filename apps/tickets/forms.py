@@ -93,17 +93,41 @@ class TicketCreateForm(forms.ModelForm):
 class TicketEditForm(forms.ModelForm):
     class Meta:
         model = Ticket
-        fields = ['title', 'description', 'category', 'sub_category', 'application', 'department', 'priority']
-        widgets = {'description': forms.Textarea(attrs={'rows': 5})}
+        fields = ['title', 'description', 'category', 'sub_category', 'application', 'priority']
+        widgets = {
+            'description': forms.Textarea(attrs={'rows': 5}),
+            'title': forms.TextInput(attrs={'placeholder': 'Titre court et descriptif'}),
+        }
+        labels = {
+            'title': 'Titre',
+            'description': 'Description détaillée',
+            'category': 'Catégorie',
+            'sub_category': 'Sous-catégorie',
+            'application': 'Application concernée',
+            'priority': 'Priorité',
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['sub_category'].queryset = SubCategory.objects.none()
         if self.instance.pk and self.instance.category_id:
             self.fields['sub_category'].queryset = SubCategory.objects.filter(
-                category=self.instance.category
+                category=self.instance.category, is_active=True
             )
         self.helper = FormHelper()
-        self.helper.add_input(Submit('submit', 'Enregistrer', css_class='btn btn-primary'))
+        self.helper.layout = Layout(
+            'title',
+            Row(
+                Column('category', css_class='col-md-6'),
+                Column('sub_category', css_class='col-md-6'),
+            ),
+            Row(
+                Column('application', css_class='col-md-6'),
+                Column('priority', css_class='col-md-6'),
+            ),
+            'description',
+            Submit('submit', 'Enregistrer', css_class='btn btn-primary'),
+        )
 
 
 class TicketAssignForm(forms.ModelForm):
@@ -115,29 +139,34 @@ class TicketAssignForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('current_user', None)
         super().__init__(*args, **kwargs)
-        from apps.accounts.models import User
-        ticket = self.instance
+        from apps.accounts.models import User, Department
 
         # Rôles non affectables : Admin, Agent de Support, Observateur
         EXCLUDED_ROLES = [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_OBSERVATEUR]
+
+        def _it_dept_ids(dept):
+            """Retourne les IDs de la racine IT + tous ses sous-départements."""
+            root = dept.parent if dept.parent_id else dept
+            return [root.pk] + list(root.children.values_list('pk', flat=True))
 
         if user and user.role == User.ROLE_ADMIN:
             # Admin : tout le monde sauf admin, agent, observateur
             qs = User.objects.filter(is_active=True).exclude(role__in=EXCLUDED_ROLES)
 
-        elif user and user.role == User.ROLE_AGENT:
-            # Agent : membres de son département (hors rôles exclus)
-            qs = User.objects.filter(
-                department=user.department,
-                is_active=True
-            ).exclude(pk=user.pk).exclude(role__in=EXCLUDED_ROLES)
-
-        elif user and user.role == User.ROLE_MANAGER:
-            # Manager : membres de son département (hors rôles exclus)
-            qs = User.objects.filter(
-                department=user.department,
-                is_active=True
-            ).exclude(pk=user.pk).exclude(role__in=EXCLUDED_ROLES)
+        elif user and user.role in (User.ROLE_AGENT, User.ROLE_MANAGER):
+            # Agent / Manager IT : peut affecter à toute la hiérarchie IT (DSI + MOA + SI/QoS)
+            if user.department and user.department.is_it_department:
+                dept_ids = _it_dept_ids(user.department)
+                qs = User.objects.filter(
+                    department_id__in=dept_ids,
+                    is_active=True
+                ).exclude(role__in=EXCLUDED_ROLES)
+            else:
+                # Hors IT : uniquement son propre département
+                qs = User.objects.filter(
+                    department=user.department,
+                    is_active=True
+                ).exclude(role__in=EXCLUDED_ROLES)
 
         else:
             qs = User.objects.none()
@@ -289,6 +318,26 @@ class TicketPriorityForm(forms.Form):
         self.fields['priority'].initial = ticket.priority
         self.helper = FormHelper()
         self.helper.add_input(Submit('submit', 'Appliquer', css_class='btn btn-warning btn-sm'))
+
+
+class TicketDurationForm(forms.Form):
+    """Formulaire de saisie de la durée estimée (agent/manager, Évolution/Tâche Projet)."""
+    estimated_duration_hours = forms.IntegerField(
+        label='Durée estimée (heures)',
+        min_value=1,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Ex. 8',
+        }),
+        help_text='Laisser vide pour effacer la durée estimée.',
+    )
+
+    def __init__(self, ticket, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['estimated_duration_hours'].initial = ticket.estimated_duration_hours
+        self.helper = FormHelper()
+        self.helper.add_input(Submit('submit', 'Enregistrer', css_class='btn btn-primary btn-sm'))
 
 
 class SLAConfigForm(forms.ModelForm):

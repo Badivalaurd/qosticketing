@@ -15,12 +15,114 @@
   <div class="col-lg-8">
     <div class="card">
       <div class="card-body">
-        <form method="post">
+        <form method="post" enctype="multipart/form-data" id="edit-form">
           {% csrf_token %}
           {% crispy form %}
+
+          <!-- Pièces jointes -->
+          <div class="mt-3 border-top pt-3">
+            <label class="form-label fw-600">Ajouter des pièces jointes</label>
+            <input type="file" name="files" id="id_files_edit" multiple
+                   class="form-control form-control-sm"
+                   accept=".pdf,.xls,.xlsx,.doc,.docx,.png,.jpg,.jpeg,.gif,.txt,.log,.csv">
+            <div class="small text-muted mt-1">1 Mo max par fichier — pour les fichiers plus lourds, utilisez l'outil de transfert interne</div>
+            <div id="files-edit-warning" class="alert alert-warning py-1 small mt-2 d-none">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              <span id="files-edit-warning-text"></span>
+            </div>
+          </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Pièces jointes existantes -->
+    {% if ticket.attachments.exists %}
+    <div class="card mt-3">
+      <div class="card-header"><i class="bi bi-paperclip me-2"></i>Fichiers joints ({{ ticket.attachments.count }})</div>
+      <div class="list-group list-group-flush">
+        {% for att in ticket.attachments.all %}
+        <div class="list-group-item d-flex align-items-center gap-2 py-2">
+          <i class="bi bi-file-earmark text-muted"></i>
+          <a href="{{ att.file.url }}" target="_blank" class="flex-grow-1 small">{{ att.filename }}</a>
+          <span class="text-muted small">{{ att.size_display }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Informations actuelles</div>
+      <div class="card-body">
+        <dl class="row small mb-0">
+          <dt class="col-sm-5 text-muted">Référence</dt>
+          <dd class="col-sm-7">{{ ticket.number }}</dd>
+          <dt class="col-sm-5 text-muted">Statut</dt>
+          <dd class="col-sm-7"><span class="badge badge-status-{{ ticket.status }}">{{ ticket.get_status_display }}</span></dd>
+          <dt class="col-sm-5 text-muted">Créé le</dt>
+          <dd class="col-sm-7">{{ ticket.created_at|date:"d/m/Y H:i" }}</dd>
+          <dt class="col-sm-5 text-muted">Demandeur</dt>
+          <dd class="col-sm-7">{{ ticket.created_by.get_full_name|default:ticket.created_by.username }}</dd>
+          {% if ticket.department %}
+          <dt class="col-sm-5 text-muted">Département</dt>
+          <dd class="col-sm-7">{{ ticket.department.name }}</dd>
+          {% endif %}
+        </dl>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Compteur caractères titre
+  const input = document.getElementById('id_title');
+  if (input) {
+    const max = parseInt(input.getAttribute('maxlength') || '150', 10);
+    const counter = document.createElement('small');
+    counter.className = 'form-text text-muted';
+    function update() {
+      const len = input.value.length;
+      counter.textContent = len + ' / ' + max + ' caractères';
+      counter.className = 'form-text ' + (max - len < 20 ? 'text-danger' : 'text-muted');
+    }
+    input.insertAdjacentElement('afterend', counter);
+    input.addEventListener('input', update);
+    update();
+  }
+
+  // Validation taille fichiers (1 Mo max)
+  const MAX = 1 * 1024 * 1024;
+  const fileInput = document.getElementById('id_files_edit');
+  const warn     = document.getElementById('files-edit-warning');
+  const wText    = document.getElementById('files-edit-warning-text');
+  const form     = document.getElementById('edit-form');
+
+  if (fileInput) {
+    fileInput.addEventListener('change', function () {
+      const over = Array.from(this.files).filter(f => f.size > MAX).map(f => f.name);
+      if (over.length) {
+        wText.textContent = 'Fichier(s) trop volumineux (> 1 Mo) : ' + over.join(', ') +
+          '. Utilisez l\'outil interne de transfert de fichiers.';
+        warn.classList.remove('d-none');
+      } else {
+        warn.classList.add('d-none');
+      }
+    });
+    form.addEventListener('submit', function (e) {
+      const over = Array.from(fileInput.files).filter(f => f.size > MAX);
+      if (over.length) {
+        e.preventDefault();
+        warn.classList.remove('d-none');
+        wText.textContent = 'Veuillez retirer les fichiers supérieurs à 1 Mo avant de soumettre.';
+        fileInput.focus();
+      }
+    });
+  }
+})();
+</script>
 {% endblock %}

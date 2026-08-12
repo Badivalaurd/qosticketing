@@ -1,4 +1,4 @@
-# Guide de Déploiement — QoS Ticketing
+﻿# Guide de Déploiement — ITTIS
 
 **Version :** 1.0 | **Date :** Juin 2026  
 **Auteur :** Équipe DSI
@@ -24,8 +24,8 @@ Depuis la console **Bash** de PythonAnywhere :
 
 ```bash
 cd ~
-git clone https://github.com/votre-org/qos-ticketing.git
-cd qos-ticketing
+git clone https://github.com/votre-org/ITTIS.git
+cd ITTIS
 ```
 
 ### 2.2 Créer l'environnement virtuel
@@ -92,7 +92,7 @@ import os
 import sys
 
 # Chemin vers le projet
-path = '/home/votre-username/qos-ticketing'
+path = '/home/votre-username/ITTIS'
 if path not in sys.path:
     sys.path.insert(0, path)
 
@@ -108,15 +108,15 @@ Dans **Web** → **Static files** de PythonAnywhere :
 
 | URL | Directory |
 |-----|-----------|
-| `/static/` | `/home/votre-username/qos-ticketing/staticfiles/` |
-| `/media/` | `/home/votre-username/qos-ticketing/media/` |
+| `/static/` | `/home/votre-username/ITTIS/staticfiles/` |
+| `/media/` | `/home/votre-username/ITTIS/media/` |
 
 ### 2.8 Configurer le virtualenv
 
 Dans **Web** → **Virtualenv** : saisir le chemin :
 
 ```
-/home/votre-username/qos-ticketing/venv
+/home/votre-username/ITTIS/venv
 ```
 
 ### 2.9 Recharger l'application
@@ -132,7 +132,7 @@ Accéder à : `https://votre-username.pythonanywhere.com`
 Après un `git push` sur le dépôt, appliquer les changements :
 
 ```bash
-cd ~/qos-ticketing
+cd ~/ITTIS
 source venv/bin/activate
 git pull origin master
 pip install -r requirements.txt
@@ -178,8 +178,8 @@ python manage.py migrate
 ## 5. Déploiement local (développement)
 
 ```bash
-git clone https://github.com/votre-org/qos-ticketing.git
-cd qos-ticketing
+git clone https://github.com/votre-org/ITTIS.git
+cd ITTIS
 python -m venv venv
 source venv/bin/activate          # Windows : venv\Scripts\activate
 pip install -r requirements.txt

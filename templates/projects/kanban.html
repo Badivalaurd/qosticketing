@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Kanban - {{ project.name }}{% endblock %}
+{% load project_tags %}
+{% block title %}Kanban — {{ project.name }}{% endblock %}
 {% block breadcrumb %}
 <li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Projets</a></li>
 <li class="breadcrumb-item"><a href="{% url 'projects:detail' project.pk %}">{{ project.name }}</a></li>
@@ -8,11 +9,40 @@
 
 {% block extra_css %}
 <style>
-.col-BACKLOG .kanban-column-header { background: #6c757d; color: white; }
-.col-TODO .kanban-column-header { background: #0d6efd; color: white; }
-.col-IN_PROGRESS .kanban-column-header { background: #fd7e14; color: white; }
-.col-IN_TEST .kanban-column-header { background: #6f42c1; color: white; }
-.col-DONE .kanban-column-header { background: #198754; color: white; }
+.kanban-board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; }
+.kanban-column { min-width: 270px; max-width: 270px; flex-shrink: 0; background: #f4f5f7; border-radius: 8px; display: flex; flex-direction: column; }
+.kanban-column-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-radius: 8px 8px 0 0; font-weight: 600; font-size: .85rem;
+}
+.col-BACKLOG .kanban-column-header { background: #6c757d; color: #fff; }
+.col-TODO .kanban-column-header { background: #0d6efd; color: #fff; }
+.col-IN_PROGRESS .kanban-column-header { background: #fd7e14; color: #fff; }
+.col-IN_TEST .kanban-column-header { background: #6f42c1; color: #fff; }
+.col-DONE .kanban-column-header { background: #198754; color: #fff; }
+.kanban-column-body {
+  flex: 1; padding: 8px; min-height: 80px; display: flex; flex-direction: column; gap: 8px;
+  transition: background .15s;
+}
+.kanban-column-body.drag-over { background: #dce3ff; }
+.kanban-card {
+  background: #fff; border-radius: 6px; padding: 10px 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); cursor: grab;
+  transition: box-shadow .15s, opacity .15s;
+  border-left: 3px solid transparent;
+}
+.kanban-card:hover { box-shadow: 0 3px 8px rgba(0,0,0,.12); }
+.kanban-card.dragging { opacity: .4; cursor: grabbing; }
+.kanban-card-title { font-size: .82rem; font-weight: 500; color: #212529; text-decoration: none; display: block; margin-bottom: 6px; line-height: 1.3; }
+.kanban-card-title:hover { color: #F16E00; }
+.priority-1 { border-left-color: #dc3545; }
+.priority-2 { border-left-color: #fd7e14; }
+.priority-3 { border-left-color: #0d6efd; }
+.priority-4 { border-left-color: #198754; }
+.avatar-xs-k { width: 22px; height: 22px; border-radius: 50%; background: #6c757d; color: #fff; display: flex; align-items: center; justify-content: center; font-size: .6rem; font-weight: 600; flex-shrink: 0; }
+.kanban-add-btn { padding: 6px 8px; background: transparent; border: none; color: rgba(255,255,255,.8); cursor: pointer; border-radius: 4px; line-height: 1; font-size: 1rem; }
+.kanban-add-btn:hover { background: rgba(255,255,255,.2); color: #fff; }
+.kanban-col-count { background: rgba(255,255,255,.25); color: #fff; padding: 1px 7px; border-radius: 10px; font-size: .75rem; font-weight: 600; }
 </style>
 {% endblock %}
 
@@ -20,67 +50,92 @@
 <div class="page-header">
   <div>
     <h1><i class="bi bi-kanban me-2 text-orange"></i>{{ project.name }}</h1>
-    <div class="d-flex gap-2 mt-1">
+    <!-- Sprint filters -->
+    <div class="d-flex gap-2 mt-1 flex-wrap">
+      <a href="{% url 'projects:kanban' project.pk %}"
+         class="btn btn-sm {% if not current_sprint and not current_epic_id %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+        Tous
+      </a>
       {% for sprint in sprints %}
-      <a href="?sprint={{ sprint.pk }}" class="btn btn-sm {% if current_sprint.pk == sprint.pk %}btn-primary{% else %}btn-outline-secondary{% endif %}">
-        {{ sprint.name }}
+      <a href="?sprint={{ sprint.pk }}"
+         class="btn btn-sm {% if current_sprint.pk == sprint.pk %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+        <i class="bi bi-lightning me-1"></i>{{ sprint.name }}
       </a>
       {% endfor %}
     </div>
   </div>
   <div class="d-flex gap-2">
-    <a href="{% url 'projects:detail' project.pk %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-list me-1"></i>Backlog
+    <a href="{% url 'projects:backlog' project.pk %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-list-task me-1"></i>Backlog
     </a>
     <a href="{% url 'projects:gantt' project.pk %}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-bar-chart-steps me-1"></i>Gantt
     </a>
+    {% if can_execute %}
+    <a href="{% url 'projects:story_create' project.pk %}{% if current_sprint %}?sprint={{ current_sprint.pk }}{% endif %}"
+       class="btn btn-primary btn-sm">
+      <i class="bi bi-plus me-1"></i>Story
+    </a>
+    {% endif %}
   </div>
 </div>
+
+<!-- Epic filter -->
+{% if epics %}
+<div class="d-flex gap-2 mb-3 flex-wrap">
+  <small class="text-muted align-self-center">Epic :</small>
+  <a href="{% url 'projects:kanban' project.pk %}{% if current_sprint %}?sprint={{ current_sprint.pk }}{% endif %}"
+     class="btn btn-xs {% if not current_epic_id %}btn-dark{% else %}btn-outline-secondary{% endif %}" style="font-size:.75rem">Tous</a>
+  {% for epic in epics %}
+  <a href="?epic={{ epic.pk }}{% if current_sprint %}&sprint={{ current_sprint.pk }}{% endif %}"
+     class="btn btn-xs {% if current_epic_id == epic.pk|stringformat:'s' %}btn-dark{% else %}btn-outline-secondary{% endif %}"
+     style="font-size:.75rem; border-left: 3px solid {{ epic.color }}">
+    {{ epic.name }}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- CSRF token for AJAX -->
+{% csrf_token %}
 
 <div class="kanban-board">
   {% for status, col in columns.items %}
   <div class="kanban-column col-{{ status }}">
     <div class="kanban-column-header">
       <span>{{ col.label }}</span>
-      <span class="badge bg-white text-dark">{{ col.stories.count }}</span>
+      <div class="d-flex align-items-center gap-1">
+        <span class="kanban-col-count">{{ col.stories|length }}</span>
+        {% if can_execute %}
+        <a href="{% url 'projects:story_create' project.pk %}?status={{ status }}{% if current_sprint %}&sprint={{ current_sprint.pk }}{% endif %}"
+           class="kanban-add-btn" title="Nouvelle story dans {{ col.label }}">
+          <i class="bi bi-plus"></i>
+        </a>
+        {% endif %}
+      </div>
     </div>
     <div class="kanban-column-body" data-status="{{ status }}">
       {% for story in col.stories %}
-      <div class="kanban-card" data-id="{{ story.pk }}">
-        <div class="card-title">{{ story.title }}</div>
-        {% if story.epic %}
-        <div class="small mb-2">
-          <span class="badge" style="background:{{ story.epic.color }}">{{ story.epic.name }}</span>
-        </div>
-        {% endif %}
-        <div class="d-flex justify-content-between align-items-center">
-          <div class="d-flex gap-1">
+      <div class="kanban-card priority-{{ story.priority }}" draggable="true" data-id="{{ story.pk }}">
+        <a href="{% url 'projects:story_detail' project.pk story.pk %}" class="kanban-card-title">
+          {{ story.title|truncatechars:70 }}
+        </a>
+        <div class="d-flex align-items-center justify-content-between gap-1">
+          <div class="d-flex align-items-center gap-1 flex-wrap">
+            {% if story.epic %}
+            <span class="badge" style="background:{{ story.epic.color }};font-size:.65rem;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ story.epic.name }}</span>
+            {% endif %}
             {% if story.story_points %}
-            <span class="badge bg-light text-dark small">{{ story.story_points }}pts</span>
+            <span class="badge bg-light text-dark border" style="font-size:.65rem">{{ story.story_points }}pt</span>
+            {% endif %}
+            {% if story.priority %}
+            <span class="badge bg-{{ PRIORITY_COLORS|get_item:story.priority }}" style="font-size:.6rem">{{ PRIORITY_LABELS|get_item:story.priority }}</span>
             {% endif %}
           </div>
           {% if story.assignee %}
-          <div class="avatar-sm" style="width:24px;height:24px;font-size:0.7rem" title="{{ story.assignee.get_full_name }}">
+          <div class="avatar-xs-k" title="{{ story.assignee.get_full_name|default:story.assignee.username }}">
             {{ story.assignee.first_name|first|default:story.assignee.username|first|upper }}
           </div>
-          {% endif %}
-        </div>
-        <!-- Status move buttons -->
-        <div class="d-flex gap-1 mt-2 flex-wrap">
-          {% if status != 'BACKLOG' %}
-          <form method="post" action="{% url 'projects:update_story_status' story.pk %}">
-            {% csrf_token %}
-            <input type="hidden" name="status" value="BACKLOG">
-            <button type="submit" class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size:0.65rem">Backlog</button>
-          </form>
-          {% endif %}
-          {% if status != 'DONE' %}
-          <form method="post" action="{% url 'projects:update_story_status' story.pk %}">
-            {% csrf_token %}
-            <input type="hidden" name="status" value="DONE">
-            <button type="submit" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:0.65rem">Terminé</button>
-          </form>
           {% endif %}
         </div>
       </div>
@@ -89,4 +144,77 @@
   </div>
   {% endfor %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+function setupKanban() {
+  const cards = document.querySelectorAll('.kanban-card');
+  const columns = document.querySelectorAll('.kanban-column-body');
+
+  cards.forEach(card => {
+    card.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('storyId', card.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => card.classList.add('dragging'), 0);
+    });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+  });
+
+  columns.forEach(col => {
+    col.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      col.classList.add('drag-over');
+    });
+    col.addEventListener('dragleave', e => {
+      if (!col.contains(e.relatedTarget)) col.classList.remove('drag-over');
+    });
+    col.addEventListener('drop', async e => {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      const storyId = e.dataTransfer.getData('storyId');
+      const newStatus = col.dataset.status;
+      const card = document.querySelector(`.kanban-card[data-id="${storyId}"]`);
+      if (!card) return;
+      const oldCol = card.closest('.kanban-column-body');
+      if (oldCol === col) return;
+
+      // Optimistic update
+      col.insertBefore(card, col.firstChild);
+      updateCounters();
+
+      try {
+        const resp = await fetch(`/projects/stories/${storyId}/status/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken,
+          },
+          body: `status=${newStatus}`,
+        });
+        if (!resp.ok) throw new Error('Erreur réseau');
+      } catch (err) {
+        // Rollback on error
+        if (oldCol) oldCol.insertBefore(card, oldCol.firstChild);
+        updateCounters();
+        alert('Impossible de mettre à jour le statut. Veuillez réessayer.');
+      }
+    });
+  });
+}
+
+function updateCounters() {
+  document.querySelectorAll('.kanban-column').forEach(col => {
+    const status = col.querySelector('.kanban-column-body').dataset.status;
+    const count = col.querySelectorAll('.kanban-card').length;
+    const badge = col.querySelector('.kanban-col-count');
+    if (badge) badge.textContent = count;
+  });
+}
+
+document.addEventListener('DOMContentLoaded', setupKanban);
+</script>
 {% endblock %}

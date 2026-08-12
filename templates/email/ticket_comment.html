@@ -1,0 +1,47 @@
+{% extends 'email/base_email.html' %}
+
+{% block header_label %}Commentaire{% endblock %}
+
+{% block event_banner %}
+<div style="background:#e3f2fd;border-bottom:1px solid #b3d9f9;padding:12px 28px;display:flex;align-items:center;gap:10px;">
+  <span style="width:32px;height:32px;background:#0288d1;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+  </span>
+  <div>
+    <div style="font-size:13px;font-weight:700;color:#01579b;">Nouveau commentaire</div>
+    <div style="font-size:11px;color:#97a0af;margin-top:1px;">Un message a été ajouté à votre ticket</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="greeting">Bonjour <strong>{{ recipient_name }}</strong>,</p>
+<p style="font-size:14px;color:#42526e;margin:0 0 4px;">Un nouveau commentaire a été ajouté sur le ticket suivant.</p>
+
+<div class="ticket-box">
+  <div style="padding:14px 16px;">
+    <span class="ticket-num">{{ ticket_number }}</span>
+    <div class="ticket-title">{{ ticket_title }}</div>
+  </div>
+  <div class="ticket-meta">
+    <div class="meta-col">
+      <div class="meta-label">Statut</div>
+      <div class="meta-value"><strong>{{ ticket_status }}</strong></div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Priorité</div>
+      <div class="meta-value">
+        <span class="prio prio-{{ ticket_priority|slice:':2' }}">{{ ticket_priority }}</span>
+      </div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Catégorie</div>
+      <div class="meta-value">{{ ticket_category }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="cta">
+  <a href="{{ ticket_url }}" class="btn">&#128172;&nbsp; Lire le commentaire</a>
+</div>
+{% endblock %}
