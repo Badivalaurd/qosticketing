@@ -1,4 +1,4 @@
-﻿{% load allauth account %}
+{% load allauth account %}
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -7,96 +7,204 @@
   <title>Connexion | ITTIS</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
   {% load static %}
   <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <style>
+    .btn-sso {
+      background: var(--primary, #ff7900);
+      border: none;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: .85rem 1.5rem;
+      border-radius: .75rem;
+      transition: background .18s, box-shadow .18s, transform .12s;
+      box-shadow: 0 4px 18px rgba(255,121,0,.30);
+    }
+    .btn-sso:hover {
+      background: #e56c00;
+      color: #fff;
+      box-shadow: 0 6px 24px rgba(255,121,0,.40);
+      transform: translateY(-1px);
+    }
+    .btn-sso:active { transform: translateY(0); }
+
+    .sso-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      background: rgba(255,255,255,.18);
+      border-radius: 2rem;
+      padding: .15rem .6rem;
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .divider-text {
+      position: relative;
+      text-align: center;
+      margin: 1.25rem 0;
+    }
+    .divider-text::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0; right: 0;
+      height: 1px;
+      background: var(--border-color, #e5e7eb);
+    }
+    .divider-text span {
+      position: relative;
+      background: var(--card-bg, #fff);
+      padding: 0 .75rem;
+      font-size: .8rem;
+      color: var(--text-muted, #6c757d);
+    }
+
+    .local-login-panel {
+      background: var(--bg-alt, #f8f9fa);
+      border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: .75rem;
+      padding: 1.25rem;
+    }
+    .local-login-toggle {
+      font-size: .82rem;
+      color: var(--text-muted, #6c757d);
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .35rem;
+    }
+    .local-login-toggle:hover { color: var(--primary, #ff7900); }
+  </style>
 </head>
 <body>
 <div class="auth-layout">
   <div class="auth-card">
+
+    <!-- Logo -->
     <div class="auth-logo">
       <i class="bi bi-ticket-detailed-fill"></i>
     </div>
     <h2 class="text-center mb-1 fw-700">ITTIS</h2>
-    <p class="text-center text-muted small mb-4">Connectez-vous à votre espace</p>
+    <p class="text-center text-muted small mb-4">IT Ticketing System — Orange Cameroun</p>
 
+    <!-- Alertes -->
     {% if request.GET.expired %}
-    <div class="alert alert-warning d-flex align-items-center gap-2 py-2 small">
+    <div class="alert alert-warning d-flex align-items-center gap-2 py-2 small mb-3">
       <i class="bi bi-clock-history flex-shrink-0"></i>
       <span>Votre session a expiré après 2h d'inactivité. Veuillez vous reconnecter.</span>
     </div>
     {% endif %}
 
     {% if messages %}
-    {% for message in messages %}
-    <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible py-2 small">
-      {{ message }}<button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
-    </div>
-    {% endfor %}
+      {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible py-2 small mb-2">
+        {{ message }}<button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+      </div>
+      {% endfor %}
     {% endif %}
 
+    <!-- ══ SSO — CTA principal ═══════════════════════════════════════ -->
+    <a href="{% url 'oidc_authentication_init' %}"
+       class="btn btn-sso w-100 d-flex align-items-center justify-content-center gap-2 mb-2">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+        <path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Se connecter via SSO Orange
+      <span class="sso-badge"><i class="bi bi-shield-check"></i>Recommandé</span>
+    </a>
+    <p class="text-center text-muted" style="font-size:.75rem">
+      Utilisez votre compte Orange Cameroun (CUID)
+    </p>
+
+    <!-- ══ Séparateur ════════════════════════════════════════════════ -->
+    <div class="divider-text"><span>ou connexion locale</span></div>
+
+    <!-- ══ Formulaire identifiant/mot de passe (secondaire) ════════ -->
     {% if form.errors %}
-    <div class="alert alert-danger alert-dismissible py-2 small">
+    <div class="alert alert-danger alert-dismissible py-2 small mb-2">
       <i class="bi bi-exclamation-circle-fill me-1"></i>
-      {% for error in form.non_field_errors %}
-        {{ error }}
-      {% endfor %}
-      {% for field in form %}
-        {% for error in field.errors %}{{ error }}{% endfor %}
-      {% endfor %}
+      {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+      {% for field in form %}{% for error in field.errors %}{{ error }}{% endfor %}{% endfor %}
       <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
     </div>
     {% endif %}
 
-    <form method="post" action="{% url 'account_login' %}">
-      {% csrf_token %}
-      <div class="mb-3">
-        <label class="form-label small fw-600">Identifiant ou email</label>
-        <div class="input-group">
-          <span class="input-group-text"><i class="bi bi-person"></i></span>
-          <input type="text" name="login" class="form-control" autofocus required>
+    <div class="local-login-panel {% if not form.errors %}d-none{% endif %}" id="localPanel">
+      <form method="post" action="{% url 'account_login' %}">
+        {% csrf_token %}
+        <div class="mb-2">
+          <label class="form-label small fw-600 mb-1">Identifiant ou email</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text"><i class="bi bi-person"></i></span>
+            <input type="text" name="login" class="form-control" {% if form.errors %}autofocus{% endif %} required>
+          </div>
         </div>
-      </div>
-      <div class="mb-3">
-        <label class="form-label small fw-600">Mot de passe</label>
-        <div class="input-group">
-          <span class="input-group-text"><i class="bi bi-lock"></i></span>
-          <input type="password" name="password" class="form-control" required>
+        <div class="mb-2">
+          <label class="form-label small fw-600 mb-1">Mot de passe</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            <input type="password" name="password" class="form-control" required>
+          </div>
         </div>
-      </div>
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <div class="form-check mb-0">
-          <input type="checkbox" name="remember" class="form-check-input" id="remember">
-          <label class="form-check-label small" for="remember">Se souvenir de moi</label>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="form-check mb-0">
+            <input type="checkbox" name="remember" class="form-check-input" id="remember">
+            <label class="form-check-label small" for="remember">Se souvenir de moi</label>
+          </div>
+          <a href="{% url 'account_reset_password' %}" class="small text-muted">Mot de passe oublié ?</a>
         </div>
-        <a href="{% url 'account_reset_password' %}" class="small text-muted">Mot de passe oublié ?</a>
-      </div>
-      <button type="submit" class="btn btn-primary w-100 fw-600">
-        <i class="bi bi-box-arrow-in-right me-2"></i>Se connecter
-      </button>
-    </form>
-
-    <div class="d-flex align-items-center my-3">
-      <hr class="flex-grow-1"><span class="px-2 small text-muted">ou</span><hr class="flex-grow-1">
+        <button type="submit" class="btn btn-outline-secondary w-100 btn-sm fw-600">
+          <i class="bi bi-box-arrow-in-right me-1"></i>Se connecter
+        </button>
+      </form>
     </div>
 
-    <a href="{% url 'accounts:magic_login' %}" class="btn btn-outline-secondary w-100 fw-600 mb-2 d-flex align-items-center justify-content-center gap-2">
+    <!-- Toggle afficher/masquer le formulaire local -->
+    <div class="local-login-toggle mt-2" id="localToggle" onclick="toggleLocal()">
+      <i class="bi bi-chevron-down" id="toggleIcon"></i>
+      <span id="toggleLabel">Connexion par identifiant / mot de passe</span>
+    </div>
+
+    <!-- ══ Code email (tertiaire) ════════════════════════════════════ -->
+    <div class="divider-text mt-3"><span>autre méthode</span></div>
+    <a href="{% url 'accounts:magic_login' %}"
+       class="d-flex align-items-center justify-content-center gap-2 text-muted small text-decoration-none">
       <i class="bi bi-envelope-check"></i>
       Connexion par code email
     </a>
-    <a href="{% url 'oidc_authentication_init' %}" class="btn btn-outline-secondary w-100 fw-600 d-flex align-items-center justify-content-center gap-2">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-        <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-      Connexion SSO — Orange Money
-    </a>
 
-    <div class="text-center mt-3 small text-muted">
+    <div class="text-center mt-4 small text-muted">
       &copy; {% now "Y" %} ITTIS — Gestion des tickets et incidents
     </div>
   </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function toggleLocal() {
+  const panel = document.getElementById('localPanel');
+  const icon  = document.getElementById('toggleIcon');
+  const label = document.getElementById('toggleLabel');
+  const open  = !panel.classList.contains('d-none');
+  panel.classList.toggle('d-none', open);
+  icon.className  = open ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+  label.textContent = open
+    ? 'Connexion par identifiant / mot de passe'
+    : 'Masquer';
+}
+
+// Si des erreurs de formulaire, le panneau est déjà ouvert — ajuster l'icône
+{% if form.errors %}
+document.getElementById('toggleIcon').className = 'bi bi-chevron-up';
+document.getElementById('toggleLabel').textContent = 'Masquer';
+{% endif %}
+</script>
 </body>
 </html>
