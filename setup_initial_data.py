@@ -1,4 +1,4 @@
-"""
+﻿"""
 Script de configuration initiale.
 Exécuter après 'python manage.py migrate' :
     python setup_initial_data.py
@@ -162,7 +162,7 @@ def create_kb_categories():
 
 
 if __name__ == '__main__':
-    print("=== Initialisation des données QoS Ticketing ===\n")
+    print("=== Initialisation des données ITTIS ===\n")
     depts = create_departments()
     create_users(depts)
     create_categories(depts)

@@ -1,12 +1,12 @@
-# Guide Utilisateur — QoS Ticketing
+﻿# Guide Utilisateur — ITTIS
 
 **Version :** 1.0 | **Date :** Juin 2026
 
 ---
 
-## Qu'est-ce que QoS Ticketing ?
+## Qu'est-ce que ITTIS ?
 
-**QoS Ticketing** est la plateforme de gestion des demandes et incidents de votre organisation. Elle vous permet de :
+**ITTIS** est la plateforme de gestion des demandes et incidents de votre organisation. Elle vous permet de :
 
 - Soumettre une demande d'assistance ou signaler un incident
 - Suivre l'avancement de vos demandes en temps réel

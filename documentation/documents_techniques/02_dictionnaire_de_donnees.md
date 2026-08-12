@@ -1,4 +1,4 @@
-# Dictionnaire de Données — QoS Ticketing
+﻿# Dictionnaire de Données — ITTIS
 
 **Version :** 1.0 | **Date :** Juin 2026  
 **Auteur :** Équipe DSI

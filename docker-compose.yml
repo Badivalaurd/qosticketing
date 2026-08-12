@@ -1,4 +1,4 @@
-version: '3.9'
+﻿version: '3.9'
 
 services:
 
@@ -7,7 +7,7 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: qos_ticketing
+      POSTGRES_DB: ittis
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres_password
     volumes:
@@ -26,7 +26,7 @@ services:
   #   Serveur    : db
   #   Utilisateur: postgres
   #   Mot de passe: postgres_password
-  #   Base       : qos_ticketing
+  #   Base       : ittis
   adminer:
     image: adminer:latest
     restart: unless-stopped
@@ -61,7 +61,7 @@ services:
     env_file: .env
     environment:
       DB_ENGINE: django.db.backends.postgresql
-      DB_NAME: qos_ticketing
+      DB_NAME: ittis
       DB_USER: postgres
       DB_PASSWORD: postgres_password
       DB_HOST: db
@@ -84,7 +84,7 @@ services:
     env_file: .env
     environment:
       DB_ENGINE: django.db.backends.postgresql
-      DB_NAME: qos_ticketing
+      DB_NAME: ittis
       DB_USER: postgres
       DB_PASSWORD: postgres_password
       DB_HOST: db

@@ -1,4 +1,4 @@
-# Matrice des Droits — QoS Ticketing
+﻿# Matrice des Droits — ITTIS
 
 **Version :** 1.0 | **Date :** Juin 2026  
 **Auteur :** Équipe DSI

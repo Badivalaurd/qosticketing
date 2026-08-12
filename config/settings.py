@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import os
 from dotenv import load_dotenv
 
@@ -96,7 +96,7 @@ elif 'mysql' in _DB_ENGINE:
 DATABASES = {
     'default': {
         'ENGINE': _DB_ENGINE,
-        'NAME': os.getenv('DB_NAME', 'qos_ticketing'),
+        'NAME': os.getenv('DB_NAME', 'ittis'),
         'USER': os.getenv('DB_USER', 'postgres'),
         'PASSWORD': os.getenv('DB_PASSWORD', 'postgres_password'),
         'HOST': os.getenv('DB_HOST', 'localhost'),
@@ -170,7 +170,7 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'QoS Ticketing API',
+    'TITLE': 'ITTIS API',
     'DESCRIPTION': 'API de gestion des tickets, incidents et évolutions',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
@@ -184,7 +184,7 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'False') == 'True'
 EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False') == 'True'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'QoS Ticketing <no-reply.extraction@orange.com>')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'ITTIS <no-reply.extraction@orange.com>')
 NOTIFICATION_EMAIL = os.getenv('NOTIFICATION_EMAIL', 'no-reply.extraction@orange.com')
 
 # Celery
@@ -208,7 +208,7 @@ _KC_BASE  = os.getenv('OIDC_KEYCLOAK_URL',   'http://keycloak.adcm.orangecm/auth
 _KC_REALM = os.getenv('OIDC_KEYCLOAK_REALM', 'digital-app')
 _KC_PROTO = f"{_KC_BASE}/realms/{_KC_REALM}/protocol/openid-connect"
 
-OIDC_RP_CLIENT_ID     = os.getenv('OIDC_RP_CLIENT_ID',     'qos-ticketing')
+OIDC_RP_CLIENT_ID     = os.getenv('OIDC_RP_CLIENT_ID',     'ittis')
 OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', '')
 OIDC_RP_SIGN_ALGO     = 'RS256'
 OIDC_RP_SCOPES        = 'openid email profile'

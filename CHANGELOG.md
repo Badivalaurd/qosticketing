@@ -1,4 +1,4 @@
-# Changelog — QoS Ticketing
+﻿# Changelog — ITTIS
 
 Toutes les modifications notables de ce projet sont documentées dans ce fichier.
 

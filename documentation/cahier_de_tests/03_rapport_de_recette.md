@@ -1,6 +1,6 @@
-# Rapport de Recette — QoS Ticketing
+﻿# Rapport de Recette — ITTIS
 
-**Projet :** QoS Ticketing  
+**Projet :** ITTIS  
 **Version testée :** ___________  
 **Date de recette :** ___________  
 **Environnement :** ___________  

@@ -1,4 +1,4 @@
-# Guide Administrateur — QoS Ticketing
+﻿# Guide Administrateur — ITTIS
 
 **Rôle :** Administrateur  
 **Version :** 1.0 | **Date :** Juin 2026

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Inscription et gestion des employés autorisés (branch develop — version web).
 
 Flux inscription :
@@ -235,7 +235,7 @@ def verify_email(request):
             user.email_confirm_code = ''
             user.save(update_fields=['is_active', 'email_confirm_code'])
             request.session.pop('email_verify_pending', None)
-            messages.success(request, "Votre compte est activé. Bienvenue sur QoS Ticketing !")
+            messages.success(request, "Votre compte est activé. Bienvenue sur ITTIS !")
             return redirect('account_login')
         else:
             context['error'] = "Code incorrect. Vérifiez l'email reçu et réessayez."
@@ -340,12 +340,12 @@ def _send_confirmation_code(user, code):
     try:
         text_body = (
             f"Bonjour {user.first_name},\n\n"
-            f"Votre code de confirmation QoS Ticketing est :\n\n"
+            f"Votre code de confirmation ITTIS est :\n\n"
             f"        {code}\n\n"
             f"Saisissez ce code dans les {CODE_EXPIRY_MINUTES} minutes.\n"
             f"Passé ce délai, demandez un nouveau code.\n\n"
             f"Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\n"
-            f"— Équipe QoS Ticketing OMCM"
+            f"— Équipe ITTIS OMCM"
         )
         html_body = render_to_string('emails/confirm_code.html', {
             'first_name': user.first_name or user.username,
@@ -353,7 +353,7 @@ def _send_confirmation_code(user, code):
             'expiry_minutes': CODE_EXPIRY_MINUTES,
         })
         msg = EmailMultiAlternatives(
-            subject='QoS Ticketing — Votre code de confirmation',
+            subject='ITTIS — Votre code de confirmation',
             body=text_body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[user.email],
@@ -656,11 +656,11 @@ def _send_magic_code(user, code):
     try:
         text_body = (
             f"Bonjour {user.first_name or user.username},\n\n"
-            f"Votre code de connexion temporaire QoS Ticketing est :\n\n"
+            f"Votre code de connexion temporaire ITTIS est :\n\n"
             f"        {code}\n\n"
             f"Ce code est valide {MAGIC_CODE_EXPIRY_MINUTES} minutes.\n"
             f"Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\n"
-            f"— Équipe QoS Ticketing OMCM"
+            f"— Équipe ITTIS OMCM"
         )
         html_body = render_to_string('emails/magic_code.html', {
             'first_name': user.first_name or user.username,
@@ -668,7 +668,7 @@ def _send_magic_code(user, code):
             'expiry_minutes': MAGIC_CODE_EXPIRY_MINUTES,
         })
         msg = EmailMultiAlternatives(
-            subject='QoS Ticketing — Votre code de connexion',
+            subject='ITTIS — Votre code de connexion',
             body=text_body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[user.email],
@@ -698,12 +698,12 @@ def _send_reset_code(user, code):
     try:
         text_body = (
             f"Bonjour {user.first_name or user.username},\n\n"
-            f"Votre code de réinitialisation de mot de passe QoS Ticketing est :\n\n"
+            f"Votre code de réinitialisation de mot de passe ITTIS est :\n\n"
             f"        {code}\n\n"
             f"Saisissez ce code dans les {CODE_EXPIRY_MINUTES} minutes.\n"
             f"Passé ce délai, demandez un nouveau code.\n\n"
             f"Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\n"
-            f"— Équipe QoS Ticketing OMCM"
+            f"— Équipe ITTIS OMCM"
         )
         html_body = render_to_string('emails/reset_code.html', {
             'first_name': user.first_name or user.username,
@@ -711,7 +711,7 @@ def _send_reset_code(user, code):
             'expiry_minutes': CODE_EXPIRY_MINUTES,
         })
         msg = EmailMultiAlternatives(
-            subject='QoS Ticketing — Code de réinitialisation de mot de passe',
+            subject='ITTIS — Code de réinitialisation de mot de passe',
             body=text_body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[user.email],

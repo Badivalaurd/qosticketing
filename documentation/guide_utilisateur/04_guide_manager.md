@@ -1,4 +1,4 @@
-# Guide Manager — QoS Ticketing
+﻿# Guide Manager — ITTIS
 
 **Rôle :** Manager de département  
 **Version :** 1.0 | **Date :** Juin 2026
@@ -7,7 +7,7 @@
 
 ## Contexte de votre rôle
 
-Le rôle de Manager dans QoS Ticketing est attribué par l'administrateur à **un seul membre par département activé** (hors IT). Vous êtes responsable de la distribution des tickets entrants dans votre département.
+Le rôle de Manager dans ITTIS est attribué par l'administrateur à **un seul membre par département activé** (hors IT). Vous êtes responsable de la distribution des tickets entrants dans votre département.
 
 > **Note :** Le manager du département IT a un rôle différent (gestion des projets) — la distribution des tickets IT est assurée par l'agent de support.
 

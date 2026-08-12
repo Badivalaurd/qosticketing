@@ -1,4 +1,4 @@
-# Spécifications Fonctionnelles — QoS Ticketing
+﻿# Spécifications Fonctionnelles — ITTIS
 
 **Version :** 1.0 | **Date :** Juin 2026  
 **Auteur :** Équipe DSI  
@@ -8,7 +8,7 @@
 
 ## 1. Présentation générale
 
-QoS Ticketing est une plateforme interne de gestion des demandes d'assistance informatique (et éventuellement d'autres départements) au sein de l'OMCM. Elle vise à :
+ITTIS est une plateforme interne de gestion des demandes d'assistance informatique (et éventuellement d'autres départements) au sein de l'OMCM. Elle vise à :
 
 - Centraliser toutes les demandes de support
 - Assurer un suivi traçable et horodaté
