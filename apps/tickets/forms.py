@@ -93,17 +93,41 @@ class TicketCreateForm(forms.ModelForm):
 class TicketEditForm(forms.ModelForm):
     class Meta:
         model = Ticket
-        fields = ['title', 'description', 'category', 'sub_category', 'application', 'department', 'priority']
-        widgets = {'description': forms.Textarea(attrs={'rows': 5})}
+        fields = ['title', 'description', 'category', 'sub_category', 'application', 'priority']
+        widgets = {
+            'description': forms.Textarea(attrs={'rows': 5}),
+            'title': forms.TextInput(attrs={'placeholder': 'Titre court et descriptif'}),
+        }
+        labels = {
+            'title': 'Titre',
+            'description': 'Description détaillée',
+            'category': 'Catégorie',
+            'sub_category': 'Sous-catégorie',
+            'application': 'Application concernée',
+            'priority': 'Priorité',
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['sub_category'].queryset = SubCategory.objects.none()
         if self.instance.pk and self.instance.category_id:
             self.fields['sub_category'].queryset = SubCategory.objects.filter(
-                category=self.instance.category
+                category=self.instance.category, is_active=True
             )
         self.helper = FormHelper()
-        self.helper.add_input(Submit('submit', 'Enregistrer', css_class='btn btn-primary'))
+        self.helper.layout = Layout(
+            'title',
+            Row(
+                Column('category', css_class='col-md-6'),
+                Column('sub_category', css_class='col-md-6'),
+            ),
+            Row(
+                Column('application', css_class='col-md-6'),
+                Column('priority', css_class='col-md-6'),
+            ),
+            'description',
+            Submit('submit', 'Enregistrer', css_class='btn btn-primary'),
+        )
 
 
 class TicketAssignForm(forms.ModelForm):

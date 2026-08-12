@@ -12,17 +12,17 @@
 <div class="row g-3">
   <div class="col-lg-4">
     <div class="card text-center p-4">
-      {% if request.user.avatar %}
-        <img src="{{ request.user.avatar.url }}" class="rounded-circle mx-auto mb-3" width="100" height="100" style="object-fit:cover">
-      {% else %}
-        <div class="mx-auto mb-3" style="width:100px;height:100px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:white;font-weight:700">
-          {{ request.user.first_name|first|default:request.user.username|first|upper }}
-        </div>
-      {% endif %}
+      <!-- Avatar générique basé sur les initiales -->
+      <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle fw-700"
+           style="width:100px;height:100px;background:var(--primary);font-size:2.5rem;color:#fff;letter-spacing:-.02em;user-select:none">
+        {{ request.user.first_name|first|default:request.user.username|first|upper }}{{ request.user.last_name|first|upper }}
+      </div>
       <h4>{{ request.user.get_full_name|default:request.user.username }}</h4>
       <p class="text-muted small">{{ request.user.get_role_display }}</p>
       {% if request.user.department %}
-      <p class="small"><i class="bi bi-building me-1"></i>{{ request.user.department.name }}</p>
+      <p class="small mb-0"><i class="bi bi-building me-1"></i>{{ request.user.department.name }}</p>
+      {% else %}
+      <p class="small text-warning mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Aucun département</p>
       {% endif %}
     </div>
   </div>
@@ -30,7 +30,13 @@
     <div class="card">
       <div class="card-header">Modifier mon profil</div>
       <div class="card-body">
-        <form method="post" enctype="multipart/form-data">
+        {% if not request.user.department %}
+        <div class="alert alert-warning d-flex gap-2 align-items-start py-2 small mb-3">
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+          <span>Vous n'avez pas encore de département. Sélectionnez-le ci-dessous — <strong>ce choix sera définitif</strong>.</span>
+        </div>
+        {% endif %}
+        <form method="post">
           {% csrf_token %}
           {% crispy form %}
         </form>

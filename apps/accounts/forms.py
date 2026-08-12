@@ -33,22 +33,38 @@ class UserRegisterForm(UserCreationForm):
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'email', 'phone', 'bio', 'avatar', 'department']
+        fields = ['first_name', 'last_name', 'email', 'phone', 'bio', 'department']
         labels = {
             'first_name': 'Prénom',
             'last_name': 'Nom',
             'bio': 'Biographie',
+            'department': 'Département',
         }
 
     def __init__(self, *args, **kwargs):
+        user_instance = kwargs.get('instance')
         super().__init__(*args, **kwargs)
         self.fields['email'].disabled = True
-        self.fields['department'].disabled = True
+
+        if user_instance and user_instance.department_id is not None:
+            # Département déjà défini : lecture seule
+            self.fields['department'].disabled = True
+        else:
+            # Première définition : uniquement les départements non-informatiques
+            self.fields['department'].queryset = Department.objects.filter(
+                is_active=True, is_it_department=False
+            ).order_by('name')
+            self.fields['department'].required = False
+            self.fields['department'].empty_label = '— Sélectionnez votre département —'
+            self.fields['department'].help_text = (
+                'Ce choix sera verrouillé après enregistrement.'
+            )
+
         self.helper = FormHelper()
         self.helper.layout = Layout(
             Row(Column('first_name', css_class='col-md-6'), Column('last_name', css_class='col-md-6')),
             Row(Column('email', css_class='col-md-8'), Column('phone', css_class='col-md-4')),
-            Row(Column('department', css_class='col-md-6'), Column('avatar', css_class='col-md-6')),
+            'department',
             'bio',
             Submit('submit', 'Enregistrer', css_class='btn btn-primary'),
         )

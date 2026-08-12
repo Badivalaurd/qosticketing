@@ -294,15 +294,13 @@ class Ticket(models.Model):
 
     def _generate_number(self):
         from django.db.models import Max
-        from apps.accounts.models import Department
 
-        # La référence identifie le département qui REÇOIT la demande
-        if self.target_department:
+        # Tickets IT (ou sans département cible) → préfixe fixe OMCM-IT
+        # Tickets transférés vers un département non-IT → code du département cible
+        if self.target_department and not self.target_department.is_it_department:
             dept_code = self.target_department.code
         else:
-            # Par défaut : département IT
-            it_dept = Department.objects.filter(is_it_department=True, is_active=True).first()
-            dept_code = it_dept.code if it_dept else 'GEN'
+            dept_code = 'IT'
 
         prefix = f"OMCM-{dept_code}-"
         last = Ticket.objects.filter(number__startswith=prefix).aggregate(Max('number'))['number__max']
@@ -313,7 +311,7 @@ class Ticket(models.Model):
                 seq = 1
         else:
             seq = 1
-        return f"{prefix}{seq:05d}"
+        return f"{prefix}{seq:06d}"
 
     @property
     def has_sla(self):

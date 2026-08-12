@@ -315,26 +315,26 @@ def ticket_create(request):
                 action=f"Ticket créé — statut '{ticket.get_status_display()}'"
             )
             files = request.FILES.getlist('files')
-            oversized = []
-            for f in files:
-                if f.size > MAX_ATTACHMENT_SIZE:
-                    oversized.append(f.name)
-                    continue
-                Attachment.objects.create(
-                    ticket=ticket, file=f, filename=f.name,
-                    file_size=f.size, content_type=f.content_type or '',
-                    uploaded_by=request.user
-                )
+            oversized = [f.name for f in files if f.size > MAX_ATTACHMENT_SIZE]
             if oversized:
+                # Bloquer la création si l'un des fichiers dépasse 1 Mo
                 noms = ', '.join(oversized)
-                messages.warning(
+                messages.error(
                     request,
-                    f"Fichier(s) ignoré(s) car supérieur(s) à 1 Mo : {noms}. "
+                    f"Création annulée — fichier(s) supérieur(s) à 1 Mo : {noms}. "
                     "Pour les fichiers volumineux, utilisez l'outil interne de transfert de fichiers."
                 )
-            send_ticket_notification(ticket, 'created')
-            messages.success(request, f"Ticket {ticket.number} créé avec succès.")
-            return redirect('tickets:detail', number=ticket.number)
+                ticket.delete()  # rollback du ticket déjà sauvegardé
+            else:
+                for f in files:
+                    Attachment.objects.create(
+                        ticket=ticket, file=f, filename=f.name,
+                        file_size=f.size, content_type=f.content_type or '',
+                        uploaded_by=request.user
+                    )
+                send_ticket_notification(ticket, 'created')
+                messages.success(request, f"Ticket {ticket.number} créé avec succès.")
+                return redirect('tickets:detail', number=ticket.number)
     else:
         form = TicketCreateForm(user=request.user)
 
@@ -372,6 +372,30 @@ def ticket_edit(request, number):
                     field_name=field,
                     old_value=str(old_vals.get(field, '')),
                     new_value=str(getattr(ticket, field, '')),
+                )
+            # Pièces jointes optionnelles
+            oversized = []
+            accepted = 0
+            for f in request.FILES.getlist('files'):
+                if f.size > MAX_ATTACHMENT_SIZE:
+                    oversized.append(f.name)
+                    continue
+                Attachment.objects.create(
+                    ticket=ticket, file=f, filename=f.name,
+                    file_size=f.size, content_type=f.content_type or '',
+                    uploaded_by=request.user
+                )
+                TicketHistory.objects.create(
+                    ticket=ticket, user=request.user,
+                    action=f"Pièce jointe : {f.name}"
+                )
+                accepted += 1
+            if oversized:
+                noms = ', '.join(oversized)
+                messages.warning(
+                    request,
+                    f"Fichier(s) ignoré(s) car supérieur(s) à 1 Mo : {noms}. "
+                    "Utilisez l'outil interne de transfert de fichiers."
                 )
             messages.success(request, "Ticket mis à jour.")
             return redirect('tickets:detail', number=number)

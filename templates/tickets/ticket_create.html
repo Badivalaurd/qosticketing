@@ -156,21 +156,37 @@ document.getElementById('id_category')?.addEventListener('change', function() {
   updateCategoryInfo(this.value, catType);
 });
 
-// Validation taille des pièces jointes (1 Mo max)
+// Validation taille des pièces jointes (1 Mo max) — bloque le submit
 (function () {
-  const MAX = 1 * 1024 * 1024;
-  const input = document.getElementById('id_files_create');
-  const warn  = document.getElementById('files-create-warning');
-  const wText = document.getElementById('files-create-warning-text');
-  if (!input) return;
+  const MAX    = 1 * 1024 * 1024;
+  const input  = document.getElementById('id_files_create');
+  const warn   = document.getElementById('files-create-warning');
+  const wText  = document.getElementById('files-create-warning-text');
+  const form   = input && input.closest('form');
+  if (!input || !form) return;
+
+  function checkFiles() {
+    return Array.from(input.files).filter(f => f.size > MAX).map(f => f.name);
+  }
+
   input.addEventListener('change', function () {
-    const over = Array.from(this.files).filter(f => f.size > MAX).map(f => f.name);
+    const over = checkFiles();
     if (over.length) {
       wText.textContent = 'Fichier(s) trop volumineux (> 1 Mo) : ' + over.join(', ') +
         '. Utilisez l\'outil interne de transfert de fichiers.';
       warn.classList.remove('d-none');
     } else {
       warn.classList.add('d-none');
+    }
+  });
+
+  form.addEventListener('submit', function (e) {
+    const over = checkFiles();
+    if (over.length) {
+      e.preventDefault();
+      wText.textContent = 'Veuillez retirer les fichiers supérieurs à 1 Mo avant de créer le ticket.';
+      warn.classList.remove('d-none');
+      input.focus();
     }
   });
 })();
