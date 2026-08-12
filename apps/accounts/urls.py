@@ -23,6 +23,9 @@ urlpatterns = [
     # ── Admin — upload employés autorisés ────────────────────────────────────
     path('admin/upload-employees/', registration_views.upload_employees, name='upload_employees'),
 
+    # ── Onboarding — choix département (première connexion) ─────────────────
+    path('setup/department/', views.choose_department, name='choose_department'),
+
     # ── Gestion utilisateurs ─────────────────────────────────────────────────
     path('profile/', views.profile_view, name='profile'),
     path('users/', views.UserListView.as_view(), name='user_list'),

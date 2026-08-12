@@ -74,6 +74,28 @@ class UserAdminForm(forms.ModelForm):
         )
 
 
+class ChooseDepartmentForm(forms.Form):
+    """
+    Formulaire de choix de département — affiché une seule fois, à la première connexion.
+    Exclut tous les départements informatiques (DSI + sous-depts).
+    """
+    department = forms.ModelChoiceField(
+        queryset=Department.objects.filter(is_active=True, is_it_department=False).order_by('name'),
+        label='Votre département',
+        empty_label='— Sélectionnez votre département —',
+        widget=forms.Select(attrs={'class': 'form-select form-select-lg'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_show_labels = True
+        self.helper.layout = Layout(
+            Field('department', css_class='form-select form-select-lg'),
+            Submit('submit', 'Confirmer mon département', css_class='btn btn-primary btn-lg w-100 mt-3'),
+        )
+
+
 class DepartmentForm(forms.ModelForm):
     class Meta:
         model = Department

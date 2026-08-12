@@ -1,0 +1,94 @@
+{% load crispy_forms_tags %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choisir votre département | QoS Ticketing</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <style>
+    body { background: var(--bg-alt, #f5f7fa); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .onboard-card {
+      background: var(--card-bg, #fff);
+      border-radius: 1.25rem;
+      box-shadow: 0 4px 32px rgba(0,0,0,.10);
+      padding: 2.5rem 2rem;
+      max-width: 480px;
+      width: 100%;
+    }
+    .onboard-icon {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      background: var(--primary, #ff7900);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.25rem;
+      font-size: 2rem; color: #fff;
+    }
+    .lock-note {
+      background: #fff8f0;
+      border: 1px solid #ffe0bb;
+      border-radius: .75rem;
+      padding: .75rem 1rem;
+      font-size: .82rem;
+      color: #7a4600;
+      display: flex; gap: .5rem; align-items: flex-start;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #1a1d21; }
+      .onboard-card { background: #23272b; color: #e2e6ea; }
+      .lock-note { background: #2e2010; border-color: #7a4600; color: #ffc88a; }
+    }
+    :root[data-theme="dark"] body { background: #1a1d21; }
+    :root[data-theme="dark"] .onboard-card { background: #23272b; color: #e2e6ea; }
+    :root[data-theme="dark"] .lock-note { background: #2e2010; border-color: #7a4600; color: #ffc88a; }
+    :root[data-theme="light"] body { background: #f5f7fa; }
+    :root[data-theme="light"] .onboard-card { background: #fff; color: #212529; }
+    :root[data-theme="light"] .lock-note { background: #fff8f0; border-color: #ffe0bb; color: #7a4600; }
+  </style>
+</head>
+<body>
+<div class="onboard-card">
+
+  <div class="onboard-icon">
+    <i class="bi bi-building-check"></i>
+  </div>
+
+  <h2 class="text-center fw-700 mb-1">Bienvenue, {{ request.user.first_name|default:request.user.username }} !</h2>
+  <p class="text-center text-muted small mb-4">
+    Avant d'accéder à la plateforme, veuillez sélectionner votre département.<br>
+    <em>Cette information ne pourra plus être modifiée par la suite.</em>
+  </p>
+
+  {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }} py-2 small">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    {% crispy form %}
+  </form>
+
+  <div class="lock-note mt-3">
+    <i class="bi bi-lock-fill flex-shrink-0 mt-1"></i>
+    <span>
+      <strong>Choix définitif.</strong> Une fois confirmé, votre département sera verrouillé.
+      Seul un administrateur pourra le modifier ultérieurement si nécessaire.
+      Les départements informatiques (DSI, MOA, QoS/SI) ne sont pas disponibles ici.
+    </span>
+  </div>
+
+  <div class="text-center mt-4 small text-muted">
+    <a href="{% url 'account_logout' %}" class="text-muted">
+      <i class="bi bi-box-arrow-left me-1"></i>Se déconnecter
+    </a>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

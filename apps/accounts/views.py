@@ -10,7 +10,7 @@ from django.contrib import messages
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse_lazy
 from .models import User, Department, AuditLog
-from .forms import UserRegisterForm, UserProfileForm, UserAdminForm, DepartmentForm
+from .forms import UserRegisterForm, UserProfileForm, UserAdminForm, DepartmentForm, ChooseDepartmentForm
 
 
 @require_http_methods(['GET', 'POST'])
@@ -43,6 +43,37 @@ class AdminRequiredMixin(UserPassesTestMixin):
 class ManagerRequiredMixin(UserPassesTestMixin):
     def test_func(self):
         return self.request.user.is_authenticated and self.request.user.role in [User.ROLE_ADMIN, User.ROLE_MANAGER]
+
+
+@login_required
+def choose_department(request):
+    """
+    Permet à l'utilisateur de choisir son département à la première connexion.
+    - Accessible seulement si `user.department` est None.
+    - Une fois le département défini (par l'utilisateur ou un admin/agent),
+      la page redirige immédiatement vers le dashboard → l'utilisateur ne peut plus modifier.
+    - Seuls les départements non-informatiques sont proposés.
+    """
+    user = request.user
+
+    # Déjà affecté à un département → redirection immédiate
+    if user.department_id is not None:
+        return redirect(request.GET.get('next') or 'dashboard:home')
+
+    if request.method == 'POST':
+        form = ChooseDepartmentForm(request.POST)
+        if form.is_valid():
+            user.department = form.cleaned_data['department']
+            user.save(update_fields=['department'])
+            messages.success(
+                request,
+                f"Bienvenue ! Votre département « {user.department.name} » a été enregistré."
+            )
+            return redirect(request.GET.get('next') or 'dashboard:home')
+    else:
+        form = ChooseDepartmentForm()
+
+    return render(request, 'accounts/choose_department.html', {'form': form})
 
 
 @login_required
