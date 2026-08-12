@@ -274,11 +274,19 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
         ctx['show_duration'] = (
             ticket.category_id and ticket.category.type in no_sla_types
         )
-        ctx['can_set_duration'] = (
-            ctx['show_duration'] and
-            not locked_for_user and
-            user.role in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_MANAGER]
-        )
+        # Seuls l'agent de support et le manager responsable du ticket peuvent fixer la durée
+        _can_dur = False
+        if ctx['show_duration'] and not locked_for_user:
+            if user.role == User.ROLE_AGENT:
+                _can_dur = True
+            elif user.role == User.ROLE_MANAGER:
+                # Manager responsable = son sous-dept IT gère cette catégorie OU ticket lui est affecté
+                is_responsible = (
+                    (ticket.category_id and ticket.category.it_team_id == user.department_id) or
+                    ticket.assigned_to_id == user.pk
+                )
+                _can_dur = is_responsible
+        ctx['can_set_duration'] = _can_dur
         if ctx['can_set_duration']:
             ctx['duration_form'] = TicketDurationForm(ticket=ticket)
         return ctx
@@ -616,12 +624,22 @@ def add_attachment(request, number):
 
 @login_required
 def ticket_set_duration(request, number):
-    """Définir la durée estimée de traitement (agent/manager/admin, Évolution et Tâche Projet)."""
+    """Définir la durée estimée de traitement (agent de support ou manager responsable du ticket)."""
     ticket = get_object_or_404(Ticket, number=number)
     user = request.user
 
-    if user.role not in [User.ROLE_ADMIN, User.ROLE_AGENT, User.ROLE_MANAGER]:
-        messages.error(request, "Non autorisé.")
+    # Vérification du rôle et de la responsabilité
+    authorized = False
+    if user.role == User.ROLE_AGENT:
+        authorized = True
+    elif user.role == User.ROLE_MANAGER:
+        authorized = (
+            (ticket.category_id and ticket.category.it_team_id == user.department_id) or
+            ticket.assigned_to_id == user.pk
+        )
+
+    if not authorized:
+        messages.error(request, "Non autorisé. Seul l'agent de support ou le manager responsable peut définir la durée.")
         return redirect('tickets:detail', number=number)
 
     no_sla_types = (Category.EVOLUTION, Category.TACHE_PROJET)
