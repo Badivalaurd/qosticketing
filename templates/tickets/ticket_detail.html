@@ -170,11 +170,17 @@
         <form method="post" action="{% url 'tickets:add_attachment' ticket.number %}" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
           {% csrf_token %}
           <input type="file" name="files" multiple class="form-control form-control-sm flex-grow-1"
+                 id="id_files_attach"
                  accept=".pdf,.xls,.xlsx,.doc,.docx,.png,.jpg,.jpeg,.gif,.txt,.log,.csv">
           <button type="submit" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-upload me-1"></i>Joindre
           </button>
         </form>
+        <div id="files-attach-warning" class="alert alert-warning py-1 small mt-1 d-none">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          <span id="files-attach-warning-text"></span>
+        </div>
+        <div class="small text-muted mt-1">1 Mo max par fichier — fichiers plus lourds : utilisez l'outil de transfert interne</div>
       </div>
     </div>
 
@@ -337,7 +343,12 @@
           <div class="mt-2">
             <label class="form-label small text-muted">Pièce jointe (optionnel)</label>
             <input type="file" name="files" class="form-control form-control-sm" multiple
+                   id="id_files_respond"
                    accept=".pdf,.xls,.xlsx,.doc,.docx,.png,.jpg,.jpeg,.gif,.txt,.log,.csv">
+            <div id="files-respond-warning" class="alert alert-warning py-1 small mt-1 d-none">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              <span id="files-respond-warning-text"></span>
+            </div>
           </div>
         </form>
       </div>
@@ -512,4 +523,33 @@
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
 .blink-badge { animation: blink 1.5s infinite; }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Validation taille des pièces jointes (1 Mo max)
+(function () {
+  const MAX = 1 * 1024 * 1024;
+  const MSG_SUFFIX = '. Pour les fichiers volumineux, utilisez l\'outil interne de transfert de fichiers.';
+
+  function setupCheck(inputId, warnId, warnTextId) {
+    const input = document.getElementById(inputId);
+    const warn  = document.getElementById(warnId);
+    const wText = document.getElementById(warnTextId);
+    if (!input || !warn || !wText) return;
+    input.addEventListener('change', function () {
+      const over = Array.from(this.files).filter(f => f.size > MAX).map(f => f.name);
+      if (over.length) {
+        wText.textContent = 'Fichier(s) trop volumineux (> 1 Mo) : ' + over.join(', ') + MSG_SUFFIX;
+        warn.classList.remove('d-none');
+      } else {
+        warn.classList.add('d-none');
+      }
+    });
+  }
+
+  setupCheck('id_files_attach',  'files-attach-warning',  'files-attach-warning-text');
+  setupCheck('id_files_respond', 'files-respond-warning', 'files-respond-warning-text');
+})();
+</script>
 {% endblock %}

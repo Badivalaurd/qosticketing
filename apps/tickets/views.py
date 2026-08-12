@@ -18,6 +18,9 @@ from apps.accounts.models import User
 import json
 import re
 
+# Taille maximale d'une pièce jointe : 1 Mo
+MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024  # 1 048 576 octets
+
 
 def get_tickets_for_user(user, tab='it'):
     """
@@ -312,11 +315,22 @@ def ticket_create(request):
                 action=f"Ticket créé — statut '{ticket.get_status_display()}'"
             )
             files = request.FILES.getlist('files')
+            oversized = []
             for f in files:
+                if f.size > MAX_ATTACHMENT_SIZE:
+                    oversized.append(f.name)
+                    continue
                 Attachment.objects.create(
                     ticket=ticket, file=f, filename=f.name,
                     file_size=f.size, content_type=f.content_type or '',
                     uploaded_by=request.user
+                )
+            if oversized:
+                noms = ', '.join(oversized)
+                messages.warning(
+                    request,
+                    f"Fichier(s) ignoré(s) car supérieur(s) à 1 Mo : {noms}. "
+                    "Pour les fichiers volumineux, utilisez l'outil interne de transfert de fichiers."
                 )
             send_ticket_notification(ticket, 'created')
             messages.success(request, f"Ticket {ticket.number} créé avec succès.")
@@ -609,7 +623,12 @@ def add_attachment(request, number):
         return redirect('tickets:detail', number=number)
     if request.method == 'POST':
         files = request.FILES.getlist('files')
+        oversized = []
+        accepted = 0
         for f in files:
+            if f.size > MAX_ATTACHMENT_SIZE:
+                oversized.append(f.name)
+                continue
             Attachment.objects.create(
                 ticket=ticket, file=f, filename=f.name,
                 file_size=f.size, content_type=f.content_type or '',
@@ -619,7 +638,16 @@ def add_attachment(request, number):
                 ticket=ticket, user=request.user,
                 action=f"Pièce jointe : {f.name}"
             )
-        messages.success(request, f"{len(files)} fichier(s) ajouté(s).")
+            accepted += 1
+        if accepted:
+            messages.success(request, f"{accepted} fichier(s) ajouté(s).")
+        if oversized:
+            noms = ', '.join(oversized)
+            messages.warning(
+                request,
+                f"Fichier(s) ignoré(s) car supérieur(s) à 1 Mo : {noms}. "
+                "Pour les fichiers volumineux, utilisez l'outil interne de transfert de fichiers."
+            )
     return redirect('tickets:detail', number=number)
 
 
@@ -855,6 +883,13 @@ def ticket_respond_info(request, number):
 
             # Pièces jointes optionnelles
             for f in request.FILES.getlist('files'):
+                if f.size > MAX_ATTACHMENT_SIZE:
+                    messages.warning(
+                        request,
+                        f"Fichier ignoré (supérieur à 1 Mo) : {f.name}. "
+                        "Utilisez l'outil interne de transfert de fichiers pour les fichiers volumineux."
+                    )
+                    continue
                 Attachment.objects.create(
                     ticket=ticket, file=f, filename=f.name,
                     file_size=f.size, content_type=f.content_type or '',

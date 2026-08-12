@@ -25,8 +25,13 @@
             <label class="form-label fw-600">Pièces jointes</label>
             <div class="border rounded-xl p-3 bg-light">
               <input type="file" name="files" multiple class="form-control form-control-sm"
+                     id="id_files_create"
                      accept=".pdf,.xls,.xlsx,.doc,.docx,.png,.jpg,.jpeg,.gif,.txt,.log,.csv">
-              <div class="small text-muted mt-1">PDF, Excel, Word, Images, Logs acceptés</div>
+              <div class="small text-muted mt-1">PDF, Excel, Word, Images, Logs acceptés — <strong>1 Mo max par fichier</strong></div>
+              <div id="files-create-warning" class="alert alert-warning py-1 small mt-1 d-none">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                <span id="files-create-warning-text"></span>
+              </div>
             </div>
           </div>
         </form>
@@ -150,5 +155,24 @@ document.getElementById('id_category')?.addEventListener('change', function() {
   const catType = CATEGORY_TYPES[this.value] || '';
   updateCategoryInfo(this.value, catType);
 });
+
+// Validation taille des pièces jointes (1 Mo max)
+(function () {
+  const MAX = 1 * 1024 * 1024;
+  const input = document.getElementById('id_files_create');
+  const warn  = document.getElementById('files-create-warning');
+  const wText = document.getElementById('files-create-warning-text');
+  if (!input) return;
+  input.addEventListener('change', function () {
+    const over = Array.from(this.files).filter(f => f.size > MAX).map(f => f.name);
+    if (over.length) {
+      wText.textContent = 'Fichier(s) trop volumineux (> 1 Mo) : ' + over.join(', ') +
+        '. Utilisez l\'outil interne de transfert de fichiers.';
+      warn.classList.remove('d-none');
+    } else {
+      warn.classList.add('d-none');
+    }
+  });
+})();
 </script>
 {% endblock %}
