@@ -1,0 +1,327 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/part-of: ittis
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ittis-secret
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+type: Opaque
+stringData:
+  SECRET_KEY: "REMPLACER-PAR-UNE-VRAIE-CLE-SECRETE-LONGUE"
+  DB_PASSWORD: "2BwJ713gHIB8rkW"
+  OIDC_RP_CLIENT_SECRET: "ac58ed16-89cb-418c-8439-c55f608a9ea0"
+  EMAIL_HOST_USER: ""
+  EMAIL_HOST_PASSWORD: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ittis-config
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+data:
+  DEBUG: "False"
+  ALLOWED_HOSTS: "ittis-ittis.apps-crc.testing,localhost,127.0.0.1"
+  DB_ENGINE: "django.db.backends.mysql"
+  DB_NAME: "om_ticketing_dev"
+  DB_USER: "ZZZZWLKV_omticketdev"
+  DB_HOST: "172.26.76.252"
+  DB_PORT: "3323"
+  REDIS_URL: "redis://ittis-redis:6379/0"
+  CELERY_BROKER_URL: "redis://ittis-redis:6379/0"
+  EMAIL_BACKEND: "django.core.mail.backends.smtp.EmailBackend"
+  EMAIL_HOST: "172.26.76.151"
+  EMAIL_PORT: "25"
+  EMAIL_USE_TLS: "False"
+  EMAIL_USE_SSL: "False"
+  DEFAULT_FROM_EMAIL: "ITTIS <no-reply.extraction@orange.com>"
+  NOTIFICATION_EMAIL: "no-reply.extraction@orange.com"
+  MEDIA_ROOT: "/app/media"
+  MEDIA_URL: "/media/"
+  OIDC_KEYCLOAK_URL: "http://keycloak.adcm.orangecm/auth"
+  OIDC_KEYCLOAK_REALM: "digital-app"
+  OIDC_RP_CLIENT_ID: "qos-ticketing"
+  ADMIN_EMAIL: "badivalaurd@gmail.com"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ittis-media
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: crc-csi-hostpath-provisioner
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ittis-redis
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ittis-redis
+  template:
+    metadata:
+      labels:
+        app: ittis-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ittis-redis
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: redis
+spec:
+  selector:
+    app: ittis-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ittis-web
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ittis-web
+  template:
+    metadata:
+      labels:
+        app: ittis-web
+    spec:
+      initContainers:
+        - name: migrate
+          image: <IMAGE>
+          command: ["python", "manage.py", "migrate", "--noinput"]
+          envFrom:
+            - configMapRef:
+                name: ittis-config
+            - secretRef:
+                name: ittis-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      containers:
+        - name: web
+          image: <IMAGE>
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: ittis-config
+            - secretRef:
+                name: ittis-secret
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "768Mi"
+          readinessProbe:
+            httpGet:
+              path: /accounts/login/
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /accounts/login/
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 5
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: ittis-media
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ittis-web
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: web
+spec:
+  selector:
+    app: ittis-web
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ittis-celery
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: celery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ittis-celery
+  template:
+    metadata:
+      labels:
+        app: ittis-celery
+    spec:
+      containers:
+        - name: celery
+          image: <IMAGE>
+          command:
+            - celery
+            - -A
+            - config.celery
+            - worker
+            - --loglevel=info
+            - --concurrency=2
+            - -E
+          envFrom:
+            - configMapRef:
+                name: ittis-config
+            - secretRef:
+                name: ittis-secret
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: ittis-media
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ittis-celery-beat
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: celery-beat
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: ittis-celery-beat
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: beat
+              image: <IMAGE>
+              command:
+                - celery
+                - -A
+                - config.celery
+                - beat
+                - --loglevel=info
+                - --scheduler
+                - django_celery_beat.schedulers:DatabaseScheduler
+              envFrom:
+                - configMapRef:
+                    name: ittis-config
+                - secretRef:
+                    name: ittis-secret
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ittis
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: route
+spec:
+  to:
+    kind: Service
+    name: ittis-web
+    weight: 100
+  port:
+    targetPort: 8000
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

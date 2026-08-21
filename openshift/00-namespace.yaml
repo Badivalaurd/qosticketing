@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: ittis
-  labels:
-    app.kubernetes.io/name: ittis
-    app.kubernetes.io/part-of: ittis
