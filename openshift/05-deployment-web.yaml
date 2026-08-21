@@ -1,0 +1,97 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Deployment — Django/Gunicorn (web)
+# Remplacer <IMAGE> par votre image buildée, ex:
+#   default-route-openshift-image-registry.apps-crc.testing/ittis/ittis-web:latest
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ittis-web
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ittis-web
+  template:
+    metadata:
+      labels:
+        app: ittis-web
+        app.kubernetes.io/name: ittis
+        app.kubernetes.io/component: web
+    spec:
+      # ── Migrations au démarrage ─────────────────────────────────────────────
+      initContainers:
+        - name: migrate
+          image: <IMAGE>
+          command: ["python", "manage.py", "migrate", "--noinput"]
+          envFrom:
+            - configMapRef:
+                name: ittis-config
+            - secretRef:
+                name: ittis-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+      containers:
+        - name: web
+          image: <IMAGE>
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: ittis-config
+            - secretRef:
+                name: ittis-secret
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "768Mi"
+          readinessProbe:
+            httpGet:
+              path: /accounts/login/
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /accounts/login/
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 5
+
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: ittis-media
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ittis-web
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: web
+spec:
+  selector:
+    app: ittis-web
+  ports:
+    - port: 8000
+      targetPort: 8000

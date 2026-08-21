@@ -1,0 +1,69 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Deployment — Celery worker (notifications, SLA checks)
+# Même image que le web — commande différente
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ittis-celery
+  namespace: ittis
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: celery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ittis-celery
+  template:
+    metadata:
+      labels:
+        app: ittis-celery
+        app.kubernetes.io/name: ittis
+        app.kubernetes.io/component: celery
+    spec:
+      containers:
+        - name: celery
+          image: <IMAGE>
+          command:
+            - celery
+            - -A
+            - config.celery
+            - worker
+            - --loglevel=info
+            - --concurrency=2
+            - -E
+          envFrom:
+            - configMapRef:
+                name: ittis-config
+            - secretRef:
+                name: ittis-secret
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - config.celery
+                - inspect
+                - ping
+                - -d
+                - celery@$HOSTNAME
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: ittis-media
