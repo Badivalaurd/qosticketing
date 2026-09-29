@@ -449,7 +449,7 @@ def ticket_change_status(request, number):
                     ticket.sla_resolution_exceeded = True
                     ticket.resolved_out_of_sla = True
 
-            if new_status == Ticket.STATUS_CLOTURE:
+            if new_status in (Ticket.STATUS_CLOTURE, Ticket.STATUS_ANNULE, Ticket.STATUS_REJETE):
                 ticket.closed_at = timezone.now()
 
             if new_status == Ticket.STATUS_REJETE:

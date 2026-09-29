@@ -4,11 +4,18 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
 from django.shortcuts import redirect
+from django.contrib.auth.decorators import login_required
+from django.views.static import serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from apps.dashboard import views as views_home
 from apps.accounts.permissions import IsAdminRole
 from apps.accounts import registration_views
 from apps.accounts import views as accounts_views
+
+
+@login_required
+def protected_media(request, path):
+    return serve(request, path, document_root=settings.MEDIA_ROOT)
 
 
 def _dashboard_redirect(request, *args, **kwargs):
@@ -36,11 +43,11 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[IsAdminRole]), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema', permission_classes=[IsAdminRole]), name='redoc'),
     path('', views_home.home, name='home'),
+    re_path(r'^media/(?P<path>.*)$', protected_media),
     re_path(r'^.*$', _dashboard_redirect, name='catch-all'),
 ]
 
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 handler400 = 'django.views.defaults.bad_request'
