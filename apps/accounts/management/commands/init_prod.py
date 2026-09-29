@@ -123,11 +123,15 @@ class Command(BaseCommand):
         from apps.accounts.models import User, Department
         dsi = Department.objects.get(code='DSI')
         users = [
-            dict(username='admin_omcm', first_name='Admin', last_name='OMCM',
-                 email=os.getenv('ADMIN_EMAIL', 'admin@omcm.local'), password='admin@123',
+            dict(username=os.getenv('ADMIN_USERNAME', 'admin_omcm'),
+                 first_name='Admin', last_name='OMCM',
+                 email=os.getenv('ADMIN_EMAIL', 'admin@omcm.local'),
+                 password=os.getenv('ADMIN_PASSWORD', 'admin@123'),
                  role=User.ROLE_ADMIN, is_staff=True, is_superuser=True),
-            dict(username='agent_omcm', first_name='Agent', last_name='Support',
-                 email='agent@omcm.local', password='agent@123',
+            dict(username=os.getenv('AGENT_USERNAME', 'agent_omcm'),
+                 first_name='Agent', last_name='Support',
+                 email=os.getenv('AGENT_EMAIL', 'itqos_support.omcm@orange.com'),
+                 password=os.getenv('AGENT_PASSWORD', 'agent@123'),
                  role=User.ROLE_AGENT, is_staff=False, is_superuser=False),
         ]
         for u in users:

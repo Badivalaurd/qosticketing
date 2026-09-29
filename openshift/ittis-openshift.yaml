@@ -15,11 +15,13 @@ metadata:
     app.kubernetes.io/name: ittis
 type: Opaque
 stringData:
-  SECRET_KEY: "REMPLACER-PAR-UNE-VRAIE-CLE-SECRETE-LONGUE"
+  SECRET_KEY: "wc$-1jvk%e0x_6tcm3du!zrrq=+l^vtin@#&@3yp0eklcqxhya"
   DB_PASSWORD: "2BwJ713gHIB8rkW"
   OIDC_RP_CLIENT_SECRET: "ac58ed16-89cb-418c-8439-c55f608a9ea0"
   EMAIL_HOST_USER: ""
   EMAIL_HOST_PASSWORD: ""
+  ADMIN_PASSWORD: "admin@123"
+  AGENT_PASSWORD: "agent@123"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -50,7 +52,10 @@ data:
   OIDC_KEYCLOAK_URL: "http://keycloak.adcm.orangecm/auth"
   OIDC_KEYCLOAK_REALM: "digital-app"
   OIDC_RP_CLIENT_ID: "qos-ticketing"
-  ADMIN_EMAIL: "badivalaurd@gmail.com"
+  ADMIN_USERNAME: "admin_omcm"
+  ADMIN_EMAIL: "admin@omcm.local"
+  AGENT_USERNAME: "agent_omcm"
+  AGENT_EMAIL: "itqos_support.omcm@orange.com"
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -146,7 +151,12 @@ spec:
         - name: migrate
           image: ittis-web:latest
           imagePullPolicy: Never
-          command: ["python", "manage.py", "migrate", "--noinput"]
+          command:
+            - sh
+            - -c
+            - |
+              python manage.py migrate --noinput &&
+              python manage.py init_prod
           envFrom:
             - configMapRef:
                 name: ittis-config
