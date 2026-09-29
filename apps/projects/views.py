@@ -237,14 +237,21 @@ def backlog_view(request, pk):
 @require_POST
 def update_story_status(request, pk):
     if not user_can_see_projects(request.user):
-        return JsonResponse({'success': False, 'error': 'Non autorisé'}, status=403)
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'Non autorisé'}, status=403)
+        messages.error(request, "Non autorisé.")
+        return redirect(request.META.get('HTTP_REFERER') or 'projects:list')
     story = get_object_or_404(UserStory, pk=pk)
     new_status = request.POST.get('status')
     if new_status in dict(UserStory.STATUS_CHOICES):
         story.status = new_status
         story.save()
-        return JsonResponse({'success': True, 'new_status': new_status})
-    return JsonResponse({'success': False}, status=400)
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'new_status': new_status})
+        return redirect(request.META.get('HTTP_REFERER') or reverse_lazy('projects:list'))
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': False}, status=400)
+    return redirect(request.META.get('HTTP_REFERER') or reverse_lazy('projects:list'))
 
 
 @login_required
@@ -596,13 +603,20 @@ def task_delete(request, project_pk, task_pk):
 def update_task_status(request, pk):
     task = get_object_or_404(Task, pk=pk)
     if not user_can_see_projects(request.user):
-        return JsonResponse({'success': False, 'error': 'Non autorisé'}, status=403)
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'Non autorisé'}, status=403)
+        messages.error(request, "Non autorisé.")
+        return redirect(request.META.get('HTTP_REFERER') or reverse_lazy('projects:list'))
     new_status = request.POST.get('status')
     if new_status in dict(Task.STATUS_CHOICES):
         task.status = new_status
         task.save()
-        return JsonResponse({'success': True})
-    return JsonResponse({'success': False}, status=400)
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': True})
+        return redirect(request.META.get('HTTP_REFERER') or reverse_lazy('projects:list'))
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': False}, status=400)
+    return redirect(request.META.get('HTTP_REFERER') or reverse_lazy('projects:list'))
 
 
 # ── Deliverable CRUD ──────────────────────────────────────────────────────────

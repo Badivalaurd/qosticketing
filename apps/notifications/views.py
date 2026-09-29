@@ -1,6 +1,7 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from .models import Notification
 
@@ -25,11 +26,15 @@ def notification_list(request):
 def mark_read(request, pk):
     notif = get_object_or_404(Notification, pk=pk, user=request.user)
     notif.mark_read()
-    return JsonResponse({'success': True})
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': True})
+    return redirect(request.META.get('HTTP_REFERER') or reverse('notifications:list'))
 
 
 @login_required
 @require_POST
 def mark_all_read(request):
     Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
-    return JsonResponse({'success': True})
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': True})
+    return redirect(request.META.get('HTTP_REFERER') or reverse('notifications:list'))
