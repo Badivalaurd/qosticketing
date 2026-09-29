@@ -468,7 +468,7 @@ def ticket_change_status(request, number):
                 ticket=ticket, user=request.user,
                 action=(
                     f"Statut : '{dict(Ticket.STATUS_CHOICES)[old_status]}'"
-                    f" → '{dict(Ticket.STATUS_CHOICES)[new_status]}'"
+                    f" -> '{dict(Ticket.STATUS_CHOICES)[new_status]}'"
                 ),
                 field_name='status', old_value=old_status, new_value=new_status,
             )
@@ -709,7 +709,7 @@ def ticket_set_duration(request, number):
             ticket.save(update_fields=['estimated_duration_hours', 'updated_at'])
             TicketHistory.objects.create(
                 ticket=ticket, user=user,
-                action=f"Durée estimée : {old or '—'}h → {new or '—'}h",
+                action=f"Durée estimée : {old or '-'}h -> {new or '-'}h",
                 field_name='estimated_duration_hours',
                 old_value=str(old or ''), new_value=str(new or ''),
             )
@@ -739,7 +739,7 @@ def ticket_change_priority(request, number):
                 ticket.reset_sla_for_priority(new_priority)
                 ticket.save()
 
-                comment_text = f"Priorité redéfinie : {old_priority} → {ticket.get_priority_display()}"
+                comment_text = f"Priorité redéfinie : {old_priority} -> {ticket.get_priority_display()}"
                 if reason:
                     comment_text += f"\nMotif : {reason}"
 
