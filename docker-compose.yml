@@ -1,100 +1,53 @@
-﻿version: '3.9'
+version: '3.9'
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Test local de l'image de production (MariaDB externe + Redis local)
+#
+# Démarrer :  docker compose up --build
+# Accès :     http://localhost:8000
+#
+# Pré-requis : être sur le réseau Orange (VPN ou bureau) pour atteindre la BD.
+# ══════════════════════════════════════════════════════════════════════════════
 
 services:
 
-  # ── Base de données PostgreSQL ─────────────────────────────────────────────
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ittis
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── Adminer — interface web pour explorer la BD ───────────────────────────
-  # Accès : http://localhost:8080
-  #   Système    : PostgreSQL
-  #   Serveur    : db
-  #   Utilisateur: postgres
-  #   Mot de passe: postgres_password
-  #   Base       : ittis
-  adminer:
-    image: adminer:latest
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      ADMINER_DEFAULT_SERVER: db
-      ADMINER_DESIGN: pepa-linha
-    depends_on:
-      db:
-        condition: service_healthy
-
-  # ── Redis (Celery broker) ─────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
 
-  # ── Application Django (dev) ──────────────────────────────────────────────
   web:
     build: .
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py init_prod &&
-             python manage.py runserver 0.0.0.0:8000"
-    volumes:
-      - .:/app
-      - media_data:/app/media
+    restart: unless-stopped
     ports:
       - "8000:8000"
     env_file: .env
     environment:
-      DB_ENGINE: django.db.backends.postgresql
-      DB_NAME: ittis
-      DB_USER: postgres
-      DB_PASSWORD: postgres_password
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_SSLMODE: disable
       CELERY_BROKER_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+    volumes:
+      - media_data:/app/media
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/accounts/login/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
-  # ── Celery worker ─────────────────────────────────────────────────────────
   celery:
     build: .
-    command: celery -A config worker -l info
-    volumes:
-      - .:/app
+    restart: unless-stopped
+    command: celery -A config.celery worker --loglevel=info --concurrency=2
     env_file: .env
     environment:
-      DB_ENGINE: django.db.backends.postgresql
-      DB_NAME: ittis
-      DB_USER: postgres
-      DB_PASSWORD: postgres_password
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_SSLMODE: disable
       CELERY_BROKER_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - media_data:/app/media
     depends_on:
-      - db
       - redis
 
 volumes:
-  postgres_data:
   media_data:
