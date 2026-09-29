@@ -144,7 +144,8 @@ spec:
     spec:
       initContainers:
         - name: migrate
-          image: <IMAGE>
+          image: ittis-web:latest
+          imagePullPolicy: Never
           command: ["python", "manage.py", "migrate", "--noinput"]
           envFrom:
             - configMapRef:
@@ -160,7 +161,8 @@ spec:
               memory: "512Mi"
       containers:
         - name: web
-          image: <IMAGE>
+          image: ittis-web:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 8000
           envFrom:
@@ -232,7 +234,8 @@ spec:
     spec:
       containers:
         - name: celery
-          image: <IMAGE>
+          image: ittis-web:latest
+          imagePullPolicy: Never
           command:
             - celery
             - -A
@@ -284,7 +287,8 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: beat
-              image: <IMAGE>
+              image: ittis-web:latest
+              imagePullPolicy: Never
               command:
                 - celery
                 - -A
