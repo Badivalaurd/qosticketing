@@ -30,12 +30,7 @@ class Command(BaseCommand):
         if not options['no_demo']:
             self._create_categories()
             self._create_sla()
-        self.stdout.write(self.style.SUCCESS("\nPrêt. Connectez-vous avec :"))
-        self.stdout.write("  URL     : /dashboard/")
-        self.stdout.write("  Admin   : admin_omcm  /  admin@123")
-        self.stdout.write("  Agent   : agent_omcm  /  agent@123")
-        self.stdout.write("  Backoffice Django : /omcm-backoffice/")
-        self.stdout.write("  Modifiez email et mot de passe depuis l'admin apres le premier login.")
+        self.stdout.write(self.style.SUCCESS("\nPrêt. Accès : /dashboard/ | Backoffice : /omcm-backoffice/"))
 
     # ── Départements ──────────────────────────────────────────────────────────
     def _create_depts(self):
@@ -125,7 +120,7 @@ class Command(BaseCommand):
         users = [
             dict(username=os.getenv('ADMIN_USERNAME', 'admin_omcm'),
                  first_name='Admin', last_name='OMCM',
-                 email=os.getenv('ADMIN_EMAIL', 'admin@omcm.local'),
+                 email=os.getenv('ADMIN_EMAIL', 'itqos_support.omcm@orange.com'),
                  password=os.getenv('ADMIN_PASSWORD', 'admin@123'),
                  role=User.ROLE_ADMIN, is_staff=True, is_superuser=True),
             dict(username=os.getenv('AGENT_USERNAME', 'agent_omcm'),

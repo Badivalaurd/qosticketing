@@ -53,7 +53,7 @@ data:
   OIDC_KEYCLOAK_REALM: "digital-app"
   OIDC_RP_CLIENT_ID: "qos-ticketing"
   ADMIN_USERNAME: "admin_omcm"
-  ADMIN_EMAIL: "admin@omcm.local"
+  ADMIN_EMAIL: "itqos_support.omcm@orange.com"
   AGENT_USERNAME: "agent_omcm"
   AGENT_EMAIL: "itqos_support.omcm@orange.com"
 ---
