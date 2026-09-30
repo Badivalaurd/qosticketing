@@ -2,9 +2,38 @@
 Backend OIDC Keycloak — authentification SSO pour les utilisateurs métier.
 Les comptes génériques (ADMIN, AGENT) continuent d'utiliser le backend local.
 """
+import requests
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
+from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
+from django.contrib import messages
+from django.shortcuts import redirect
 
 from apps.accounts.models import Department, User
+
+
+class SafeOIDCCallbackView(OIDCAuthenticationCallbackView):
+    """Capture les erreurs de connexion Keycloak et affiche un message clair."""
+
+    def get(self, request):
+        try:
+            return super().get(request)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            messages.error(
+                request,
+                "Le serveur SSO (Keycloak) est inaccessible. "
+                "Utilisez le formulaire de connexion ci-dessous."
+            )
+            return redirect('account_login')
+        except Exception as exc:
+            err = str(exc)
+            if 'Token' in err or '403' in err or '401' in err:
+                messages.error(
+                    request,
+                    "La connexion SSO a échoué. Vérifiez vos accès ou "
+                    "utilisez le formulaire de connexion ci-dessous."
+                )
+                return redirect('account_login')
+            raise
 
 
 class KeycloakOIDCBackend(OIDCAuthenticationBackend):

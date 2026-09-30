@@ -10,6 +10,8 @@ services:
   web:
     build: .
     restart: unless-stopped
+    extra_hosts:
+      - "keycloak.adcm.orangecm:172.26.76.96"
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py init_prod &&
