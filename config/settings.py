@@ -115,7 +115,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTH_USER_MODEL = 'accounts.User'
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
+    'apps.accounts.backends.LocalPasswordBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
     'apps.accounts.oidc.KeycloakOIDCBackend',
 ]
@@ -232,10 +232,8 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'console': {
-            'format': '\033[36m{asctime}\033[0m [{levelname}] {name} | {message}',
-            'style': '{',
-            'datefmt': '%H:%M:%S',
+        'colored': {
+            '()': 'apps.accounts.log_handlers.ColoredConsoleFormatter',
         },
         'file': {
             'format': '{asctime} [{levelname}] {name} | user={user} | {message}',
@@ -244,11 +242,10 @@ LOGGING = {
             'defaults': {'user': 'system'},
         },
     },
-    'filters': [],
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'console',
+            'formatter': 'colored',
         },
         'daily_global': {
             '()': 'apps.accounts.log_handlers.DailyFileHandler',
@@ -262,16 +259,42 @@ LOGGING = {
         },
     },
     'loggers': {
-        'mozilla_django_oidc': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
+        # ── Application ──────────────────────────────────────────────
         'apps': {
             'handlers': ['console', 'daily_global', 'daily_user'],
             'level': 'INFO',
             'propagate': False,
         },
+        # ── Emails ───────────────────────────────────────────────────
+        'django.core.mail': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        # ── Authentification ─────────────────────────────────────────
+        'django.contrib.auth': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # ── SSO / OIDC ───────────────────────────────────────────────
+        'mozilla_django_oidc': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # ── Celery ───────────────────────────────────────────────────
+        'celery': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'celery.task': {
+            'handlers': ['console', 'daily_global'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # ── Requêtes HTTP et sécurité ─────────────────────────────────
         'django.request': {
             'handlers': ['console', 'daily_global'],
             'level': 'WARNING',

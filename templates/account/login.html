@@ -1,4 +1,4 @@
-{% load allauth account %}
+{% load allauth account static %}
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -7,81 +7,61 @@
   <title>Connexion | ITTIS</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-  {% load static %}
   <link rel="stylesheet" href="{% static 'css/main.css' %}">
   <style>
-    /* ── SSO block ───────────────────────────────────────────────── */
-    .sso-block {
+    .sso-card {
       border: 2px solid #ff7900;
       border-radius: 1rem;
-      padding: 1.1rem 1.25rem;
-      display: flex;
-      align-items: center;
-      gap: .85rem;
-      text-decoration: none;
-      transition: background .16s, box-shadow .16s, transform .12s;
+      padding: 1.1rem 1.25rem 1.25rem;
       background: #fff;
       position: relative;
       overflow: hidden;
     }
-    .sso-block::before {
+    .sso-card::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(120deg, rgba(255,121,0,.07) 0%, rgba(255,121,0,0) 60%);
+      background: linear-gradient(120deg, rgba(255,121,0,.06) 0%, transparent 60%);
       pointer-events: none;
     }
-    .sso-block:hover {
-      background: #fff8f2;
-      box-shadow: 0 4px 20px rgba(255,121,0,.18);
-      transform: translateY(-1px);
-      border-color: #e56c00;
+    .sso-header {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-bottom: .9rem;
     }
-    .sso-block:active { transform: translateY(0); }
-
     .sso-icon-wrap {
-      width: 42px; height: 42px;
-      border-radius: .65rem;
+      width: 38px; height: 38px;
+      border-radius: .55rem;
       background: #ff7900;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
       color: #fff;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
     }
-    .sso-label { flex: 1; }
-    .sso-label strong {
+    .sso-header-text { flex: 1; }
+    .sso-header-text strong {
       display: block;
-      color: #1a1a1a;
-      font-size: .93rem;
+      font-size: .9rem;
       font-weight: 700;
-      line-height: 1.2;
+      color: #1a1a1a;
     }
-    .sso-label small {
-      color: #6c757d;
-      font-size: .73rem;
-    }
-    .sso-recommended {
-      font-size: .65rem;
+    .sso-header-text small { color: #6c757d; font-size: .72rem; }
+    .sso-badge {
+      font-size: .62rem;
       font-weight: 700;
       letter-spacing: .06em;
       text-transform: uppercase;
       color: #ff7900;
       background: rgba(255,121,0,.10);
       border-radius: 2rem;
-      padding: .2rem .55rem;
+      padding: .18rem .5rem;
       white-space: nowrap;
     }
-    .sso-chevron {
-      color: #ff7900;
-      font-size: 1rem;
-      flex-shrink: 0;
-    }
-
-    /* ── Divider ─────────────────────────────────────────────────── */
     .divider-text {
       position: relative;
       text-align: center;
-      margin: 1.1rem 0;
+      margin: 1rem 0;
     }
     .divider-text::before {
       content: '';
@@ -97,8 +77,6 @@
       font-size: .75rem;
       color: #9ca3af;
     }
-
-    /* ── Local login panel ───────────────────────────────────────── */
     .local-panel {
       background: #f9fafb;
       border: 1px solid #e5e7eb;
@@ -122,14 +100,10 @@
 <div class="auth-layout">
   <div class="auth-card">
 
-    <!-- Logo -->
-    <div class="auth-logo">
-      <i class="bi bi-ticket-detailed-fill"></i>
-    </div>
+    <div class="auth-logo"><i class="bi bi-ticket-detailed-fill"></i></div>
     <h2 class="text-center mb-1 fw-700">ITTIS</h2>
     <p class="text-center text-muted small mb-4">Connectez-vous à votre espace</p>
 
-    <!-- Alertes -->
     {% if request.GET.expired %}
     <div class="alert alert-warning d-flex align-items-center gap-2 py-2 small mb-3">
       <i class="bi bi-clock-history flex-shrink-0"></i>
@@ -137,52 +111,75 @@
     </div>
     {% endif %}
 
+    <!-- ══ 1. SSO Orange — Keycloak direct ══════════════════════════ -->
+    <div class="sso-card mb-1" id="ssoCard">
+      <div class="sso-header" id="ssoToggle" onclick="openSSO()" style="cursor:pointer;">
+        <div class="sso-icon-wrap"><i class="bi bi-shield-lock-fill"></i></div>
+        <div class="sso-header-text">
+          <strong>Connexion SSO Orange</strong>
+          <small>Compte Orange Cameroun (CUID)</small>
+        </div>
+        <span class="sso-badge" id="ssoBadge">Recommandé</span>
+      </div>
+
+      <div id="ssoBody">
+        <form method="post" action="{% url 'accounts:keycloak_direct_login' %}">
+          {% csrf_token %}
+          <div class="mb-2 mt-1">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+              <input type="text" name="kc_username" class="form-control"
+                     placeholder="CUID (ex : FXYZ1234)" autocomplete="username" autofocus required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="bi bi-lock"></i></span>
+              <input type="password" name="kc_password" class="form-control"
+                     placeholder="Mot de passe Orange" autocomplete="current-password" required>
+            </div>
+          </div>
+          <button type="submit" class="btn w-100 btn-sm fw-600"
+                  style="background:#ff7900;color:#fff;border:none;">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Se connecter
+          </button>
+        </form>
+      </div>
+    </div>
+
     {% if messages %}
       {% for message in messages %}
-      <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible py-2 small mb-2">
-        {{ message }}<button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
+      <div class="alert alert-{{ message.tags|default:'info' }} d-flex align-items-center gap-2 py-2 small mt-3">
+        <i class="bi bi-exclamation-circle-fill flex-shrink-0"></i>
+        <span>{{ message }}</span>
+        <button type="button" class="btn-close btn-close-sm ms-auto" data-bs-dismiss="alert"></button>
       </div>
       {% endfor %}
     {% endif %}
 
-    {% if form.errors %}
-    <div class="alert alert-danger alert-dismissible py-2 small mb-3">
-      <i class="bi bi-exclamation-circle-fill me-1"></i>
-      {% for error in form.non_field_errors %}{{ error }}{% endfor %}
-      {% for field in form %}{% for error in field.errors %}{{ error }}{% endfor %}{% endfor %}
-      <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
-    </div>
-    {% endif %}
-
-    <!-- ══ SSO — CTA principal ═══════════════════════════════════════ -->
-    <a href="{% url 'oidc_authentication_init' %}" class="sso-block mb-1">
-      <div class="sso-icon-wrap">
-        <i class="bi bi-shield-lock-fill"></i>
-      </div>
-      <div class="sso-label">
-        <strong>Connexion SSO Orange</strong>
-        <small>Compte Orange Cameroun (CUID)</small>
-      </div>
-      <span class="sso-recommended">Recommandé</span>
-      <i class="bi bi-chevron-right sso-chevron"></i>
-    </a>
-
-    <!-- ══ Formulaire local (secondaire) ═════════════════════════════ -->
+    <!-- ══ 2. Identifiant / mot de passe local ════════════════════════ -->
     <div class="divider-text mt-3"><span>ou</span></div>
 
-    <div class="local-toggle mb-2" id="localToggle" onclick="toggleLocal()">
+    <div class="local-toggle mb-2" onclick="toggleLocal()">
       <i class="bi bi-chevron-down" id="toggleIcon"></i>
       <span id="toggleLabel">Identifiant / mot de passe</span>
     </div>
 
-    <div class="local-panel {% if not form.errors %}d-none{% endif %}" id="localPanel">
+    <div class="local-panel d-none" id="localPanel">
+      {% if form.errors %}
+      <div class="alert alert-danger py-2 small mb-3">
+        <i class="bi bi-exclamation-circle-fill me-1"></i>
+        {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+        {% for field in form %}{% for error in field.errors %}{{ error }}{% endfor %}{% endfor %}
+      </div>
+      {% endif %}
       <form method="post" action="{% url 'account_login' %}">
         {% csrf_token %}
         <div class="mb-2">
           <label class="form-label small fw-600 mb-1">Identifiant ou email</label>
           <div class="input-group input-group-sm">
             <span class="input-group-text"><i class="bi bi-person"></i></span>
-            <input type="text" name="login" class="form-control" {% if form.errors %}autofocus{% endif %} required>
+            <input type="text" name="login" class="form-control" required>
           </div>
         </div>
         <div class="mb-2">
@@ -205,11 +202,11 @@
       </form>
     </div>
 
-    <!-- ══ Code email (tertiaire) ════════════════════════════════════ -->
+    <!-- ══ 3. Code email — fallback ═══════════════════════════════════ -->
     <div class="text-center mt-3">
       <a href="{% url 'accounts:magic_login' %}"
          class="text-muted small text-decoration-none d-inline-flex align-items-center gap-1">
-        <i class="bi bi-envelope"></i>Connexion par code email
+        <i class="bi bi-envelope"></i>Connexion par code email (@orange.com)
       </a>
     </div>
 
@@ -221,16 +218,36 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-function toggleLocal() {
-  const panel = document.getElementById('localPanel');
-  const icon  = document.getElementById('toggleIcon');
-  const label = document.getElementById('toggleLabel');
-  const open  = !panel.classList.contains('d-none');
-  panel.classList.toggle('d-none', open);
-  icon.className = open ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
-  label.textContent = open ? 'Identifiant / mot de passe' : 'Masquer';
+function openSSO() {
+  document.getElementById('ssoBody').classList.remove('d-none');
+  document.getElementById('ssoCard').style.opacity = '1';
+  document.getElementById('ssoBadge').style.display = '';
+  document.getElementById('localPanel').classList.add('d-none');
+  document.getElementById('toggleIcon').className = 'bi bi-chevron-down';
+  document.getElementById('toggleLabel').textContent = 'Identifiant / mot de passe';
 }
+
+function toggleLocal() {
+  const localOpen = !document.getElementById('localPanel').classList.contains('d-none');
+  if (localOpen) {
+    // fermer local → rouvrir SSO
+    openSSO();
+  } else {
+    // ouvrir local → fermer SSO
+    document.getElementById('ssoBody').classList.add('d-none');
+    document.getElementById('ssoCard').style.opacity = '.55';
+    document.getElementById('ssoBadge').style.display = 'none';
+    document.getElementById('localPanel').classList.remove('d-none');
+    document.getElementById('toggleIcon').className = 'bi bi-chevron-up';
+    document.getElementById('toggleLabel').textContent = 'Masquer';
+  }
+}
+
 {% if form.errors %}
+document.getElementById('ssoBody').classList.add('d-none');
+document.getElementById('ssoCard').style.opacity = '.55';
+document.getElementById('ssoBadge').style.display = 'none';
+document.getElementById('localPanel').classList.remove('d-none');
 document.getElementById('toggleIcon').className = 'bi bi-chevron-up';
 document.getElementById('toggleLabel').textContent = 'Masquer';
 {% endif %}

@@ -1,0 +1,46 @@
+# ── Image ────────────────────────────────────────────────────────────────────
+image:
+  repository: nexus.orange.cm:5001/ittis-web
+  tag: latest
+  pullPolicy: Always
+
+# ── Secrets (à modifier avant déploiement) ───────────────────────────────────
+secret:
+  secretKey: "wc$-1jvk%e0x_6tcm3du!zrrq=+l^vtin@#&@3yp0eklcqxhya"
+  dbPassword: "2BwJ713gHIB8rkW"
+  oidcClientSecret: "ac58ed16-89cb-418c-8439-c55f608a9ea0"
+  emailHostUser: ""
+  emailHostPassword: ""
+  adminPassword: "admin@123"
+  agentPassword: "agent@123"
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+config:
+  debug: "False"
+  allowedHosts: "ittis-ittis.apps-crc.testing,localhost,127.0.0.1"
+  dbEngine: "django.db.backends.mysql"
+  dbName: "om_ticketing_dev"
+  dbUser: "ZZZZWLKV_omticketdev"
+  dbHost: "172.26.76.252"
+  dbPort: "3323"
+  redisUrl: "redis://ittis-redis:6379/0"
+  celeryBrokerUrl: "redis://ittis-redis:6379/0"
+  emailBackend: "django.core.mail.backends.smtp.EmailBackend"
+  emailHost: "172.26.76.151"
+  emailPort: "25"
+  emailUseTls: "False"
+  emailUseSsl: "False"
+  defaultFromEmail: "ITTIS <no-reply.extraction@orange.com>"
+  notificationEmail: "no-reply.extraction@orange.com"
+  oidcKeycloakUrl: "http://keycloak.adcm.orangecm/auth"
+  oidcKeycloakRealm: "digital-app"
+  oidcRpClientId: "ITTIS"
+  adminUsername: "admin_omcm"
+  adminEmail: "itqos_support.omcm@orange.com"
+  agentUsername: "agent_omcm"
+  agentEmail: "itqos_support.omcm@orange.com"
+
+# ── Stockage ──────────────────────────────────────────────────────────────────
+storage:
+  storageClassName: crc-csi-hostpath-provisioner
+  mediaSize: 5Gi

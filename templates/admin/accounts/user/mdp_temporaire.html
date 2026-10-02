@@ -1,0 +1,53 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Mot de passe temporaire — {{ user_obj.username }}{% endblock %}
+
+{% block content %}
+<div style="max-width:520px;">
+  <h1>Mot de passe temporaire</h1>
+  <p>
+    Utilisateur : <strong>{{ user_obj.get_full_name|default:user_obj.username }}</strong>
+    ({{ user_obj.username }})
+  </p>
+
+  {% if user_obj.temp_password_expires_at %}
+  <div class="help" style="background:#fff3cd;border:1px solid #ffc107;padding:10px 14px;border-radius:4px;margin-bottom:16px;">
+    Un mot de passe temporaire est déjà actif jusqu'au
+    <strong>{{ user_obj.temp_password_expires_at|date:"d/m/Y à H:i" }}</strong>.
+    Définir un nouveau mot de passe ci-dessous remplacera l'ancien et repart le compteur de {{ hours }}h.
+  </div>
+  {% endif %}
+
+  {% if error %}
+  <div class="errornote">{{ error }}</div>
+  {% endif %}
+
+  <div class="help" style="background:#e8f4fd;border:1px solid #bee5eb;padding:10px 14px;border-radius:4px;margin-bottom:20px;">
+    <strong>Mode dégradé uniquement.</strong><br>
+    Ce mot de passe est valable <strong>{{ hours }} heures</strong> puis devient
+    automatiquement inutilisable. Transmettez-le à l'utilisateur par téléphone ou en personne —
+    ne l'envoyez pas par email si le service mail est en panne.
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <fieldset class="module aligned">
+      <div class="form-row">
+        <label for="id_password" class="required">Nouveau mot de passe :</label>
+        <input type="password" name="password" id="id_password" minlength="8"
+               autocomplete="new-password" required style="width:280px;">
+        <p class="help">Au moins 8 caractères.</p>
+      </div>
+      <div class="form-row">
+        <label for="id_password2" class="required">Confirmation :</label>
+        <input type="password" name="password2" id="id_password2" minlength="8"
+               autocomplete="new-password" required style="width:280px;">
+      </div>
+    </fieldset>
+    <div class="submit-row">
+      <input type="submit" value="Définir le mot de passe ({{ hours }}h)" class="default">
+      <a href="{% url 'admin:accounts_user_change' user_obj.pk %}"
+         style="margin-left:12px;">Annuler</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

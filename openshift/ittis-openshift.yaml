@@ -51,7 +51,7 @@ data:
   MEDIA_URL: "/media/"
   OIDC_KEYCLOAK_URL: "http://keycloak.adcm.orangecm/auth"
   OIDC_KEYCLOAK_REALM: "digital-app"
-  OIDC_RP_CLIENT_ID: "qos-ticketing"
+  OIDC_RP_CLIENT_ID: "ITTIS"
   ADMIN_USERNAME: "admin_omcm"
   ADMIN_EMAIL: "itqos_support.omcm@orange.com"
   AGENT_USERNAME: "agent_omcm"
@@ -149,8 +149,8 @@ spec:
     spec:
       initContainers:
         - name: migrate
-          image: ittis-web:latest
-          imagePullPolicy: Never
+          image: nexus.orange.cm:5001/ittis-web:latest
+          imagePullPolicy: Always
           command:
             - sh
             - -c
@@ -171,8 +171,8 @@ spec:
               memory: "512Mi"
       containers:
         - name: web
-          image: ittis-web:latest
-          imagePullPolicy: Never
+          image: nexus.orange.cm:5001/ittis-web:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           envFrom:
@@ -244,8 +244,8 @@ spec:
     spec:
       containers:
         - name: celery
-          image: ittis-web:latest
-          imagePullPolicy: Never
+          image: nexus.orange.cm:5001/ittis-web:latest
+          imagePullPolicy: Always
           command:
             - celery
             - -A
@@ -297,8 +297,8 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: beat
-              image: ittis-web:latest
-              imagePullPolicy: Never
+              image: nexus.orange.cm:5001/ittis-web:latest
+              imagePullPolicy: Always
               command:
                 - celery
                 - -A

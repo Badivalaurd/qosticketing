@@ -109,6 +109,9 @@ class User(AbstractUser):
     pwd_reset_sent_at = models.DateTimeField(
         'Code reset envoyé le', null=True, blank=True
     )
+    temp_password_expires_at = models.DateTimeField(
+        'Mot de passe temporaire expire le', null=True, blank=True
+    )
 
     class Meta:
         verbose_name = 'Utilisateur'

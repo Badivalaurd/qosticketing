@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ittis-media
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: ittis
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.storage.storageClassName | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.mediaSize }}

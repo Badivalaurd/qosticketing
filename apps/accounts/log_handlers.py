@@ -1,19 +1,58 @@
 """
-Gestionnaire de logs journaliers par utilisateur.
+Gestionnaire de logs journaliers par utilisateur + formateur console coloré.
 
-Structure créée :
+Structure fichiers :
   logs/
-    2026-06-07.log          ← journal global du jour (tous événements)
-    users/
-      VFYX5401/
-        2026-06-07.log      ← journal du jour pour cet utilisateur
-      system/
-        2026-06-07.log      ← événements sans utilisateur identifié
+    2026-06-07.log          ← journal global du jour
+    users/CUID/2026-06-07.log
 """
 import logging
 import os
 import threading
 from datetime import date
+
+# ── Formateur console coloré ──────────────────────────────────────────────────
+
+_LEVEL_STYLES = {
+    'DEBUG':    ('\033[90m',    '  DEBUG '),   # gris
+    'INFO':     ('\033[36m',    '   INFO '),   # cyan
+    'WARNING':  ('\033[33;1m',  'WARNING '),   # jaune gras
+    'ERROR':    ('\033[31;1m',  '  ERROR '),   # rouge gras
+    'CRITICAL': ('\033[41;1m',  ' CRITIC '),   # fond rouge
+}
+_RESET = '\033[0m'
+_DIM   = '\033[2m'
+_TIME  = '\033[90m'
+
+
+class ColoredConsoleFormatter(logging.Formatter):
+    """
+    Format : HH:MM:SS  LEVEL   module.court | message
+    Chaque niveau a sa propre couleur. Les noms de logger sont raccourcis.
+    """
+
+    def format(self, record):
+        color, label = _LEVEL_STYLES.get(record.levelname, ('', record.levelname))
+        time   = self.formatTime(record, '%H:%M:%S')
+        # Raccourcir le nom : apps.accounts.views → accounts.views
+        parts  = record.name.split('.')
+        name   = '.'.join(parts[-2:]) if len(parts) > 2 else record.name
+        name   = f'{name:<28}'
+
+        msg = record.getMessage()
+        if record.exc_info:
+            if not record.exc_text:
+                record.exc_text = self.formatException(record.exc_info)
+        if record.exc_text:
+            msg = msg + '\n' + _DIM + record.exc_text + _RESET
+
+        return (
+            f'{_TIME}{time}{_RESET}  '
+            f'{color}{label}{_RESET}'
+            f'{_DIM}{name}{_RESET}  '
+            f'{color if record.levelno >= logging.WARNING else ""}{msg}'
+            f'{_RESET if record.levelno >= logging.WARNING else ""}'
+        )
 
 
 class DailyFileHandler(logging.Handler):

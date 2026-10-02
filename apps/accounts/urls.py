@@ -15,6 +15,9 @@ urlpatterns = [
     path('password/reset/resend/', registration_views.password_reset_resend, name='password_reset_resend'),
     path('password/reset/change/', registration_views.password_reset_change, name='password_reset_change'),
 
+    # ── Connexion Keycloak directe (sans redirection) ───────────────────────
+    path('login/keycloak/', views.keycloak_direct_login, name='keycloak_direct_login'),
+
     # ── Connexion par code email (fallback Keycloak) ─────────────────────────
     path('login/magic/', registration_views.magic_login, name='magic_login'),
     path('login/magic/verify/', registration_views.magic_login_verify, name='magic_login_verify'),

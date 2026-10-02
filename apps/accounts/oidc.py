@@ -6,6 +6,7 @@ import requests
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
 from django.contrib import messages
+from django.core.exceptions import SuspiciousOperation
 from django.shortcuts import redirect
 
 from apps.accounts.models import Department, User
@@ -17,22 +18,33 @@ class SafeOIDCCallbackView(OIDCAuthenticationCallbackView):
     def get(self, request):
         try:
             return super().get(request)
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.HTTPError,
+        ):
             messages.error(
                 request,
-                "Le serveur SSO (Keycloak) est inaccessible. "
-                "Utilisez le formulaire de connexion ci-dessous."
+                "Le serveur SSO (Keycloak) est temporairement indisponible. "
+                "Utilisez la connexion par code email ci-dessous."
             )
-            return redirect('account_login')
+            return redirect('/accounts/login/?fallback=1')
+        except SuspiciousOperation:
+            messages.error(
+                request,
+                "Session SSO expirée ou invalide. "
+                "Utilisez la connexion par identifiant/mot de passe ou le code email."
+            )
+            return redirect('/accounts/login/?fallback=1')
         except Exception as exc:
             err = str(exc)
-            if 'Token' in err or '403' in err or '401' in err:
+            if any(k in err for k in ('Token', '403', '401', 'OIDC')):
                 messages.error(
                     request,
-                    "La connexion SSO a échoué. Vérifiez vos accès ou "
-                    "utilisez le formulaire de connexion ci-dessous."
+                    "La connexion SSO a échoué. "
+                    "Utilisez la connexion par identifiant/mot de passe ou le code email."
                 )
-                return redirect('account_login')
+                return redirect('/accounts/login/?fallback=1')
             raise
 
 

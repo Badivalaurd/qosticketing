@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ittis-celery
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: celery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ittis-celery
+  template:
+    metadata:
+      labels:
+        app: ittis-celery
+    spec:
+      containers:
+        - name: celery
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - config.celery
+            - worker
+            - --loglevel=info
+            - --concurrency=2
+            - -E
+          envFrom:
+            - configMapRef:
+                name: ittis-config
+            - secretRef:
+                name: ittis-secret
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: ittis-media
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ittis-celery-beat
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: ittis
+    app.kubernetes.io/component: celery-beat
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: ittis-celery-beat
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: beat
+              image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - celery
+                - -A
+                - config.celery
+                - beat
+                - --loglevel=info
+                - --scheduler
+                - django_celery_beat.schedulers:DatabaseScheduler
+              envFrom:
+                - configMapRef:
+                    name: ittis-config
+                - secretRef:
+                    name: ittis-secret
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"

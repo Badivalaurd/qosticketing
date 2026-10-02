@@ -515,7 +515,10 @@ def password_reset_change(request):
             errors.append("Les mots de passe ne correspondent pas.")
 
         if not errors:
+            from datetime import timedelta
             user.set_password(password)
+            # Le mot de passe auto-défini est traité comme temporaire (8h)
+            user.temp_password_expires_at = timezone.now() + timedelta(hours=8)
             user.save()
             request.session.pop('pwd_reset_verified', None)
             logger.info(
@@ -558,9 +561,15 @@ def magic_login(request):
             context['error'] = "L'adresse email est obligatoire."
         else:
             user = User.objects.filter(email__iexact=email, is_active=True).first()
+
+            # Auto-création pour les emails @orange.com (fallback Keycloak)
+            if not user and _is_orange_email(email):
+                user = _create_orange_user(email)
+
             if not user:
                 context['error'] = (
-                    "Aucun compte actif trouvé pour cette adresse email."
+                    "Aucun compte actif trouvé. "
+                    "Connectez-vous via SSO ou contactez votre administrateur."
                 )
                 context['sso_required'] = True
             else:
@@ -618,7 +627,7 @@ def magic_login_verify(request):
             user.pwd_reset_sent_at = None
             user.save(update_fields=['pwd_reset_code', 'pwd_reset_sent_at'])
             request.session.pop('magic_login_email', None)
-            auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            auth_login(request, user, backend='apps.accounts.backends.LocalPasswordBackend')
             logger.info(
                 "Magic login OK : %s (%s)", user.email, user.username,
                 extra={'user': user.username},
@@ -645,6 +654,65 @@ def magic_login_resend(request):
         messages.success(request, "Un nouveau code vous a été envoyé par email.")
 
     return redirect('accounts:magic_login_verify')
+
+
+def _is_orange_email(email: str) -> bool:
+    """Retourne True pour @orange.com et tout sous-domaine *.orange.com."""
+    email = email.strip().lower()
+    return email.endswith('@orange.com') or email.endswith('.orange.com')
+
+
+def _parse_name_from_email(local: str):
+    """
+    Extrait prénom et nom depuis la partie locale d'un email.
+    jean.dupont      → ('Jean', 'Dupont')
+    jean.pierre.doe  → ('Jean Pierre', 'Doe')
+    jdupont          → ('Jdupont', '')
+    """
+    parts = [p.capitalize() for p in local.split('.') if p]
+    if len(parts) == 0:
+        return '', ''
+    if len(parts) == 1:
+        return parts[0], ''
+    return ' '.join(parts[:-1]), parts[-1]
+
+
+def _create_orange_user(email: str):
+    """
+    Crée un compte minimal pour un email @orange.com inconnu.
+    Même logique que KeycloakOIDCBackend.create_user — pas de mot de passe,
+    rôle DEMANDEUR, département NO-DEPT.
+    Le nom est déduit de la partie locale de l'email (prenom.nom@orange.com).
+    """
+    local = email.split('@')[0]
+    username = local
+    if User.objects.filter(username=username).exists():
+        username = email  # dernier recours si identifiant déjà pris
+
+    first_name, last_name = _parse_name_from_email(local)
+
+    try:
+        dept = Department.objects.get(code='NO-DEPT')
+    except Department.DoesNotExist:
+        dept = None
+
+    user = User(
+        username=username,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        role=User.ROLE_DEMANDEUR,
+        department=dept,
+        is_active=True,
+    )
+    user.set_unusable_password()
+    user.save()
+    logger.info(
+        "Compte auto-créé (magic login) pour %s → %s %s",
+        email, first_name, last_name,
+        extra={'user': username},
+    )
+    return user
 
 
 def _send_magic_code(user, code):

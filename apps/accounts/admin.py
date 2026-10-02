@@ -1,11 +1,19 @@
 import io
+import logging
+from datetime import timedelta
+
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.http import HttpResponseRedirect
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
+from django.utils import timezone
 
 from .models import User, Department, AuditLog, AuthorizedEmployee
+
+logger = logging.getLogger(__name__)
+
+TEMP_PASSWORD_HOURS = 8
 
 
 # ── Admin AuthorizedEmployee ──────────────────────────────────────────────────
@@ -196,15 +204,82 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display  = ['username', 'email', 'get_full_name', 'role', 'department', 'is_active']
+    list_display  = ['username', 'email', 'get_full_name', 'role', 'department',
+                     'is_active', 'lien_mdp_temporaire']
     list_filter   = ['role', 'department', 'is_active']
     search_fields = ['username', 'email', 'first_name', 'last_name']
     fieldsets = BaseUserAdmin.fieldsets + (
         ('Informations supplémentaires', {'fields': ('role', 'department', 'phone', 'avatar', 'bio')}),
+        ('Accès temporaire', {'fields': ('temp_password_expires_at',), 'classes': ('collapse',)}),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
         ('Informations supplémentaires', {'fields': ('role', 'department', 'phone')}),
     )
+    readonly_fields = ['temp_password_expires_at']
+
+    def get_urls(self):
+        urls = super().get_urls()
+        extra = [
+            path(
+                '<int:user_id>/mdp-temporaire/',
+                self.admin_site.admin_view(self.view_mdp_temporaire),
+                name='accounts_user_mdp_temporaire',
+            ),
+        ]
+        return extra + urls
+
+    @admin.display(description='Accès temporaire')
+    def lien_mdp_temporaire(self, obj):
+        from django.utils.html import format_html
+        url = reverse('admin:accounts_user_mdp_temporaire', args=[obj.pk])
+        if obj.temp_password_expires_at and timezone.now() < obj.temp_password_expires_at:
+            remaining = obj.temp_password_expires_at - timezone.now()
+            h = int(remaining.total_seconds() // 3600)
+            m = int((remaining.total_seconds() % 3600) // 60)
+            return format_html(
+                '<a href="{}">🔑 Actif ({}h{}m)</a>', url, h, m
+            )
+        return format_html('<a href="{}">Définir MDP temporaire</a>', url)
+
+    def view_mdp_temporaire(self, request, user_id):
+        user = get_object_or_404(User, pk=user_id)
+        error = None
+
+        if request.method == 'POST':
+            mdp = request.POST.get('password', '')
+            mdp2 = request.POST.get('password2', '')
+
+            if len(mdp) < 8:
+                error = "Le mot de passe doit contenir au moins 8 caractères."
+            elif mdp != mdp2:
+                error = "Les deux mots de passe ne correspondent pas."
+            else:
+                user.set_password(mdp)
+                user.temp_password_expires_at = timezone.now() + timedelta(hours=TEMP_PASSWORD_HOURS)
+                user.save(update_fields=['password', 'temp_password_expires_at'])
+                logger.info(
+                    "MDP temporaire défini pour %s par %s (expire dans %dh)",
+                    user.username, request.user.username, TEMP_PASSWORD_HOURS,
+                )
+                self.message_user(
+                    request,
+                    f"Mot de passe temporaire défini pour {user.username}. "
+                    f"Valable {TEMP_PASSWORD_HOURS}h — transmettez-le par téléphone ou en personne.",
+                    messages.SUCCESS,
+                )
+                return HttpResponseRedirect(
+                    reverse('admin:accounts_user_change', args=[user.pk])
+                )
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': f'Mot de passe temporaire — {user.username}',
+            'user_obj': user,
+            'error': error,
+            'hours': TEMP_PASSWORD_HOURS,
+            'opts': self.model._meta,
+        }
+        return render(request, 'admin/accounts/user/mdp_temporaire.html', context)
 
 
 # ── Admin AuditLog ────────────────────────────────────────────────────────────

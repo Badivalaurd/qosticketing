@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ittis-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: ittis
+data:
+  DEBUG: {{ .Values.config.debug | quote }}
+  ALLOWED_HOSTS: {{ .Values.config.allowedHosts | quote }}
+  DB_ENGINE: {{ .Values.config.dbEngine | quote }}
+  DB_NAME: {{ .Values.config.dbName | quote }}
+  DB_USER: {{ .Values.config.dbUser | quote }}
+  DB_HOST: {{ .Values.config.dbHost | quote }}
+  DB_PORT: {{ .Values.config.dbPort | quote }}
+  REDIS_URL: {{ .Values.config.redisUrl | quote }}
+  CELERY_BROKER_URL: {{ .Values.config.celeryBrokerUrl | quote }}
+  EMAIL_BACKEND: {{ .Values.config.emailBackend | quote }}
+  EMAIL_HOST: {{ .Values.config.emailHost | quote }}
+  EMAIL_PORT: {{ .Values.config.emailPort | quote }}
+  EMAIL_USE_TLS: {{ .Values.config.emailUseTls | quote }}
+  EMAIL_USE_SSL: {{ .Values.config.emailUseSsl | quote }}
+  DEFAULT_FROM_EMAIL: {{ .Values.config.defaultFromEmail | quote }}
+  NOTIFICATION_EMAIL: {{ .Values.config.notificationEmail | quote }}
+  MEDIA_ROOT: "/app/media"
+  MEDIA_URL: "/media/"
+  OIDC_KEYCLOAK_URL: {{ .Values.config.oidcKeycloakUrl | quote }}
+  OIDC_KEYCLOAK_REALM: {{ .Values.config.oidcKeycloakRealm | quote }}
+  OIDC_RP_CLIENT_ID: {{ .Values.config.oidcRpClientId | quote }}
+  ADMIN_USERNAME: {{ .Values.config.adminUsername | quote }}
+  ADMIN_EMAIL: {{ .Values.config.adminEmail | quote }}
+  AGENT_USERNAME: {{ .Values.config.agentUsername | quote }}
+  AGENT_EMAIL: {{ .Values.config.agentEmail | quote }}
